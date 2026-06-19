@@ -10,6 +10,25 @@ const WEAPONS = [
   { name: "SPREAD", color: 0xfff06a },
   { name: "CRUISE", color: 0x9cff7f },
 ];
+const CAPTURED_KEYS = [
+  Phaser.Input.Keyboard.KeyCodes.UP,
+  Phaser.Input.Keyboard.KeyCodes.DOWN,
+  Phaser.Input.Keyboard.KeyCodes.LEFT,
+  Phaser.Input.Keyboard.KeyCodes.RIGHT,
+  Phaser.Input.Keyboard.KeyCodes.W,
+  Phaser.Input.Keyboard.KeyCodes.A,
+  Phaser.Input.Keyboard.KeyCodes.S,
+  Phaser.Input.Keyboard.KeyCodes.D,
+  Phaser.Input.Keyboard.KeyCodes.SPACE,
+  Phaser.Input.Keyboard.KeyCodes.Q,
+  Phaser.Input.Keyboard.KeyCodes.E,
+  Phaser.Input.Keyboard.KeyCodes.C,
+  Phaser.Input.Keyboard.KeyCodes.B,
+  Phaser.Input.Keyboard.KeyCodes.F,
+  Phaser.Input.Keyboard.KeyCodes.ONE,
+  Phaser.Input.Keyboard.KeyCodes.TWO,
+  Phaser.Input.Keyboard.KeyCodes.THREE,
+];
 
 const LEVELS = [
   {
@@ -54,6 +73,7 @@ class BootScene extends Phaser.Scene {
 
   create() {
     syncGameSize(this);
+    setupKeyboardCapture(this);
     this.makeTextures();
     this.scene.start("MenuScene");
   }
@@ -134,6 +154,7 @@ class MenuScene extends Phaser.Scene {
 
   create() {
     syncGameSize(this);
+    setupKeyboardCapture(this);
     const records = loadScoreRecords();
     this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x03040c).setOrigin(0);
     addStarfield(this, 0x15d9ff);
@@ -163,6 +184,7 @@ class ResultScene extends Phaser.Scene {
 
   create() {
     syncGameSize(this);
+    setupKeyboardCapture(this);
     const win = this.dataIn.mode === "win";
     const clear = this.dataIn.mode === "clear";
     const records = saveScoreRecord({
@@ -224,6 +246,7 @@ class GameScene extends Phaser.Scene {
 
   create() {
     syncGameSize(this);
+    setupKeyboardCapture(this);
     this.records = loadScoreRecords();
     this.level = LEVELS[this.levelIndex];
     this.isGameOver = false;
@@ -259,7 +282,19 @@ class GameScene extends Phaser.Scene {
     ];
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,Q,E,C,ONE,TWO,THREE");
+    this.keys = this.input.keyboard.addKeys({
+      W: Phaser.Input.Keyboard.KeyCodes.W,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      S: Phaser.Input.Keyboard.KeyCodes.S,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
+      SPACE: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      Q: Phaser.Input.Keyboard.KeyCodes.Q,
+      E: Phaser.Input.Keyboard.KeyCodes.E,
+      C: Phaser.Input.Keyboard.KeyCodes.C,
+      ONE: Phaser.Input.Keyboard.KeyCodes.ONE,
+      TWO: Phaser.Input.Keyboard.KeyCodes.TWO,
+      THREE: Phaser.Input.Keyboard.KeyCodes.THREE,
+    });
     this.input.on("pointerdown", () => {
       resumeAudio(this);
       this.pointerDown = true;
@@ -1015,6 +1050,36 @@ function addStarfield(scene, color) {
     g.fillStyle(i % 4 ? 0xffffff : color, Phaser.Math.FloatBetween(0.25, 0.95));
     g.fillCircle(Phaser.Math.Between(0, WIDTH), Phaser.Math.Between(0, HEIGHT), Phaser.Math.Between(1, 3));
   }
+}
+
+function setupKeyboardCapture(scene) {
+  CAPTURED_KEYS.forEach((keyCode) => scene.input.keyboard.addCapture(keyCode));
+  const canvas = scene.game.canvas;
+  canvas.setAttribute("tabindex", "0");
+  canvas.style.outline = "none";
+  canvas.focus();
+  scene.input.on("pointerdown", () => canvas.focus());
+  installGlobalKeyBlocker();
+}
+
+function installGlobalKeyBlocker() {
+  if (window.__neon1945KeyBlockerInstalled) return;
+  window.__neon1945KeyBlockerInstalled = true;
+  const blocked = new Set([
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    " ",
+    "Spacebar",
+  ]);
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (blocked.has(event.key)) event.preventDefault();
+    },
+    { passive: false },
+  );
 }
 
 function syncGameSize(scene, gameSize = scene.scale.gameSize) {
