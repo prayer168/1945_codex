@@ -1,0 +1,17 @@
+html,
+body,
+#game {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #03040c;
+  color: #dffcff;
+  font-family: "Segoe UI", "Noto Sans TC", Arial, sans-serif;
+}
+
+canvas {
+  display: block;
+  margin: 0 auto;
+  image-rendering: auto;
+}
