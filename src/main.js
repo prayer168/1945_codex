@@ -1316,9 +1316,10 @@ function syncGameSize(scene, gameSize = scene.scale.gameSize) {
 }
 
 function getViewportSize() {
+  const gameRect = document.getElementById("game")?.getBoundingClientRect();
   return {
-    width: Math.max(320, Math.floor(window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 540)),
-    height: Math.max(480, Math.floor(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 840)),
+    width: Math.max(320, Math.floor(gameRect?.width || window.innerWidth || document.documentElement.clientWidth || window.visualViewport?.width || 540)),
+    height: Math.max(480, Math.floor(gameRect?.height || window.innerHeight || document.documentElement.clientHeight || window.visualViewport?.height || 840)),
   };
 }
 
