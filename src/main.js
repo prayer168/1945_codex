@@ -32,7 +32,6 @@ const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.E,
   Phaser.Input.Keyboard.KeyCodes.C,
   Phaser.Input.Keyboard.KeyCodes.B,
-  Phaser.Input.Keyboard.KeyCodes.F,
   Phaser.Input.Keyboard.KeyCodes.ONE,
   Phaser.Input.Keyboard.KeyCodes.TWO,
   Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -380,8 +379,7 @@ class MenuScene extends Phaser.Scene {
       playSfx(this, "start");
       this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3, weaponType: 0, wingmen: 0, missiles: 3 });
     };
-    neonButton(this, WIDTH / 2, HEIGHT * 0.68, "START", startGame);
-    neonButton(this, WIDTH / 2, HEIGHT * 0.78, "FULLSCREEN", () => toggleFullscreen(this));
+    neonButton(this, WIDTH / 2, HEIGHT * 0.7, "START", startGame);
     this.input.keyboard.once("keydown-SPACE", startGame);
     this.scale.on("resize", () => this.scene.restart());
   }
@@ -530,7 +528,6 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.pickups, this.collectPickup, null, this);
 
     this.input.keyboard.on("keydown-B", () => this.clearEnemyBullets(true));
-    this.input.keyboard.on("keydown-F", () => toggleFullscreen(this));
     this.input.keyboard.on("keydown-Q", () => this.cycleWeapon(-1));
     this.input.keyboard.on("keydown-E", () => this.cycleWeapon(1));
     this.input.keyboard.on("keydown-ONE", () => this.setWeapon(0));
@@ -1323,16 +1320,6 @@ function getViewportSize() {
   };
 }
 
-function toggleFullscreen(scene) {
-  resumeAudio(scene);
-  playSfx(scene, "menu");
-  if (scene.scale.isFullscreen) {
-    scene.scale.stopFullscreen();
-  } else {
-    scene.scale.startFullscreen();
-  }
-}
-
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
@@ -1346,7 +1333,6 @@ const game = new Phaser.Game({
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.NO_CENTER,
-    fullscreenTarget: "game",
   },
   scene: [BootScene, MenuScene, GameScene, ResultScene],
 });
