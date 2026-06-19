@@ -92,11 +92,38 @@ class BootScene extends Phaser.Scene {
     };
 
     make("player", (g, w, h) => {
-      g.fillStyle(0x062f45, 1).fillTriangle(w / 2, 4, 9, h - 10, w - 9, h - 10);
-      g.lineStyle(3, 0x9fffff, 1).strokeTriangle(w / 2, 4, 9, h - 10, w - 9, h - 10);
-      g.fillStyle(0xffffff, 1).fillTriangle(w / 2, 13, 25, h - 13, 39, h - 13);
-      g.lineStyle(2, 0x20e7ff, 0.9).lineBetween(w / 2, 9, w / 2, h - 13);
-      g.fillStyle(0x49f4ff, 0.9).fillCircle(w / 2, h - 12, 5);
+      g.fillStyle(0x031826, 1);
+      g.fillPoints([
+        { x: w / 2, y: 3 },
+        { x: 39, y: 22 },
+        { x: 58, y: 44 },
+        { x: 45, y: 50 },
+        { x: 39, y: 66 },
+        { x: w / 2, y: 58 },
+        { x: 25, y: 66 },
+        { x: 19, y: 50 },
+        { x: 6, y: 44 },
+        { x: 25, y: 22 },
+      ], true);
+      g.lineStyle(3, 0x9fffff, 1);
+      g.strokePoints([
+        { x: w / 2, y: 3 },
+        { x: 39, y: 22 },
+        { x: 58, y: 44 },
+        { x: 45, y: 50 },
+        { x: 39, y: 66 },
+        { x: w / 2, y: 58 },
+        { x: 25, y: 66 },
+        { x: 19, y: 50 },
+        { x: 6, y: 44 },
+        { x: 25, y: 22 },
+      ], true);
+      g.fillStyle(0x0b4f68, 1).fillTriangle(w / 2, 8, 41, 48, 23, 48);
+      g.fillStyle(0xeaffff, 0.95).fillTriangle(w / 2, 15, 38, 36, 26, 36);
+      g.lineStyle(2, 0x20e7ff, 0.95).lineBetween(w / 2, 8, w / 2, 58);
+      g.lineStyle(2, 0x55f7ff, 0.65).lineBetween(13, 43, 28, 48).lineBetween(51, 43, 36, 48);
+      g.fillStyle(0x49f4ff, 0.95).fillCircle(25, 62, 4).fillCircle(39, 62, 4);
+      g.fillStyle(0xffffff, 0.8).fillCircle(w / 2, 31, 3);
     }, 64, 72);
 
     make("bullet", (g, w, h) => {
@@ -117,9 +144,33 @@ class BootScene extends Phaser.Scene {
     }, 32, 44);
 
     make("wingman", (g, w, h) => {
-      g.fillStyle(0x071828, 1).fillTriangle(w / 2, 3, 5, h - 7, w - 5, h - 7);
-      g.lineStyle(2, 0xfff06a, 0.95).strokeTriangle(w / 2, 3, 5, h - 7, w - 5, h - 7);
-      g.fillStyle(0x83faff, 1).fillCircle(w / 2, h - 8, 3);
+      g.fillStyle(0x10120a, 1);
+      g.fillPoints([
+        { x: w / 2, y: 3 },
+        { x: 25, y: 17 },
+        { x: 34, y: 28 },
+        { x: 24, y: 31 },
+        { x: 21, y: 39 },
+        { x: w / 2, y: 35 },
+        { x: 15, y: 39 },
+        { x: 12, y: 31 },
+        { x: 2, y: 28 },
+        { x: 11, y: 17 },
+      ], true);
+      g.lineStyle(2, 0xfff06a, 0.95).strokePoints([
+        { x: w / 2, y: 3 },
+        { x: 25, y: 17 },
+        { x: 34, y: 28 },
+        { x: 24, y: 31 },
+        { x: 21, y: 39 },
+        { x: w / 2, y: 35 },
+        { x: 15, y: 39 },
+        { x: 12, y: 31 },
+        { x: 2, y: 28 },
+        { x: 11, y: 17 },
+      ], true);
+      g.fillStyle(0x83faff, 1).fillCircle(w / 2, 23, 3);
+      g.fillStyle(0xfff06a, 0.9).fillCircle(14, h - 7, 3).fillCircle(22, h - 7, 3);
     }, 36, 42);
 
     make("enemyBullet", (g) => {
@@ -136,9 +187,65 @@ class BootScene extends Phaser.Scene {
       make(`enemy-${type}`, (g, w, h) => {
         const colors = [0xff4778, 0xff8a2b, 0xc95dff, 0x37f0ff, 0xffdf47, 0x9d74ff, 0xff364a, 0xff643d, 0xff3df2, 0xffffff];
         const c = colors[i];
-        g.fillStyle(0x120816, 1).fillTriangle(w / 2, h - 4, 7, 7, w - 7, 7);
-        g.lineStyle(type === "gunship" || type === "shield" ? 4 : 3, c, 1).strokeTriangle(w / 2, h - 4, 7, 7, w - 7, 7);
-        g.fillStyle(c, 0.9).fillCircle(w / 2, h / 2, type === "gunship" ? 10 : 6);
+        const heavy = type === "gunship" || type === "shield" || type === "elite";
+        const narrow = type === "sniper" || type === "suicide" || type === "dive";
+        g.fillStyle(0x150811, 1);
+        if (heavy) {
+          g.fillRoundedRect(10, 12, w - 20, h - 22, 10);
+          g.fillStyle(0x230b1a, 1).fillTriangle(w / 2, h - 3, 12, 22, w - 12, 22);
+          g.lineStyle(4, c, 1).strokeRoundedRect(10, 12, w - 20, h - 22, 10);
+          g.lineStyle(3, c, 0.82).strokeTriangle(w / 2, h - 3, 12, 22, w - 12, 22);
+          g.fillStyle(c, 0.85).fillCircle(w / 2, h / 2, type === "gunship" ? 11 : 8);
+          g.fillStyle(0xffffff, 0.65).fillCircle(22, 25, 4).fillCircle(w - 22, 25, 4);
+          g.lineStyle(2, c, 0.7).lineBetween(18, h - 18, w - 18, h - 18);
+        } else if (narrow) {
+          g.fillPoints([
+            { x: w / 2, y: h - 3 },
+            { x: 36, y: 34 },
+            { x: w - 7, y: 16 },
+            { x: 35, y: 20 },
+            { x: w / 2, y: 5 },
+            { x: 19, y: 20 },
+            { x: 7, y: 16 },
+            { x: 18, y: 34 },
+          ], true);
+          g.lineStyle(3, c, 1).strokePoints([
+            { x: w / 2, y: h - 3 },
+            { x: 36, y: 34 },
+            { x: w - 7, y: 16 },
+            { x: 35, y: 20 },
+            { x: w / 2, y: 5 },
+            { x: 19, y: 20 },
+            { x: 7, y: 16 },
+            { x: 18, y: 34 },
+          ], true);
+          g.fillStyle(c, 0.85).fillCircle(w / 2, h / 2 + 3, type === "sniper" ? 5 : 6);
+          g.lineStyle(2, 0xffffff, 0.55).lineBetween(w / 2, 10, w / 2, h - 8);
+        } else {
+          g.fillPoints([
+            { x: w / 2, y: h - 4 },
+            { x: 38, y: 35 },
+            { x: w - 6, y: 27 },
+            { x: 36, y: 17 },
+            { x: w / 2, y: 7 },
+            { x: 18, y: 17 },
+            { x: 6, y: 27 },
+            { x: 16, y: 35 },
+          ], true);
+          g.lineStyle(3, c, 1).strokePoints([
+            { x: w / 2, y: h - 4 },
+            { x: 38, y: 35 },
+            { x: w - 6, y: 27 },
+            { x: 36, y: 17 },
+            { x: w / 2, y: 7 },
+            { x: 18, y: 17 },
+            { x: 6, y: 27 },
+            { x: 16, y: 35 },
+          ], true);
+          g.fillStyle(c, 0.8).fillCircle(w / 2, h / 2, type === "spread" ? 8 : 6);
+          g.fillStyle(0xffffff, 0.55).fillCircle(w / 2, 19, 3);
+          g.lineStyle(2, c, 0.55).lineBetween(13, 32, 25, 37).lineBetween(w - 13, 32, w - 25, 37);
+        }
       }, type === "gunship" ? 76 : 54, type === "gunship" ? 70 : 54);
     });
 
