@@ -14,6 +14,9 @@ const BOSS_SPECS = [
   { texture: "boss-orbit", body: [150, 78], y: 118, sway: 115, speed: 820 },
   { texture: "boss-plasma", body: [110, 120], y: 132, sway: 86, speed: 620 },
   { texture: "boss-abyss", body: [176, 102], y: 126, sway: 68, speed: 980 },
+  { texture: "boss-forge", body: [184, 96], y: 128, sway: 96, speed: 760 },
+  { texture: "boss-quantum", body: [138, 126], y: 132, sway: 120, speed: 540 },
+  { texture: "boss-null", body: [198, 118], y: 124, sway: 54, speed: 1120 },
 ];
 const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.UP,
@@ -67,6 +70,39 @@ const LEVELS = [
       hp: 1450,
       tint: 0xff2544,
       modes: ["fullScreen", "weakPoint", "eliteSummon"],
+    },
+  },
+  {
+    name: "Solar Foundry",
+    palette: { bg: 0x080504, grid: 0xffb02e, accent: 0xffef64, enemy: 0xff643d },
+    enemies: ["basic", "side", "gunship"],
+    boss: {
+      name: "SOLAR ANVIL DREADNOUGHT",
+      hp: 1720,
+      tint: 0xffb02e,
+      modes: ["lineStorm", "splitShot", "arcWall"],
+    },
+  },
+  {
+    name: "Quantum Reef",
+    palette: { bg: 0x02120c, grid: 0x66ffbd, accent: 0x36f5ff, enemy: 0x9cff7f },
+    enemies: ["tracker", "spread", "sniper"],
+    boss: {
+      name: "QUANTUM SERAPH",
+      hp: 2050,
+      tint: 0x66ffbd,
+      modes: ["spiral", "summon", "weakPoint"],
+    },
+  },
+  {
+    name: "Event Horizon",
+    palette: { bg: 0x020208, grid: 0xb7c9ff, accent: 0xffffff, enemy: 0xff4778 },
+    enemies: ["shield", "gunship", "elite"],
+    boss: {
+      name: "NULL STAR EMPEROR",
+      hp: 2550,
+      tint: 0xb7c9ff,
+      modes: ["fullScreen", "sideLasers", "eliteSummon"],
     },
   },
 ];
@@ -284,6 +320,44 @@ class BootScene extends Phaser.Scene {
       g.fillStyle(0xff2544, 0.9).fillCircle(35, h / 2, 10).fillCircle(w - 35, h / 2, 10);
       g.fillStyle(0xa55cff, 0.9).fillCircle(w / 2 - 42, h / 2 + 32, 7).fillCircle(w / 2 + 42, h / 2 + 32, 7);
     }, 220, 152);
+
+    make("boss-forge", (g, w, h) => {
+      g.fillStyle(0x1b0b02, 1).fillRoundedRect(8, 26, w - 16, h - 46, 12);
+      g.fillStyle(0x2a1103, 1).fillTriangle(w / 2, h - 4, 16, 34, w - 16, 34);
+      g.lineStyle(5, 0xffb02e, 0.96).strokeRoundedRect(8, 26, w - 16, h - 46, 12);
+      g.lineStyle(4, 0xffef64, 0.75).strokeTriangle(w / 2, h - 4, 16, 34, w - 16, 34);
+      g.fillStyle(0xffef64, 0.82).fillCircle(w / 2, h / 2, 24);
+      g.fillStyle(0xff643d, 0.48).fillCircle(w / 2, h / 2, 40);
+      g.fillStyle(0xffb02e, 0.9).fillRect(28, 32, 30, 12).fillRect(w - 58, 32, 30, 12);
+      g.lineStyle(3, 0xffef64, 0.65).lineBetween(24, h - 34, w - 24, h - 34);
+      g.fillStyle(0xffffff, 0.7).fillCircle(34, h / 2 + 22, 5).fillCircle(w - 34, h / 2 + 22, 5);
+    }, 214, 142);
+
+    make("boss-quantum", (g, w, h) => {
+      g.fillStyle(0x031d14, 1).fillCircle(w / 2, h / 2, 34);
+      g.fillStyle(0x052823, 1).fillTriangle(w / 2, 6, w - 14, h / 2, w / 2, h - 6);
+      g.fillTriangle(w / 2, 6, 14, h / 2, w / 2, h - 6);
+      g.lineStyle(4, 0x66ffbd, 0.95).strokeCircle(w / 2, h / 2, 34);
+      g.lineStyle(3, 0x36f5ff, 0.85).strokeTriangle(w / 2, 6, w - 14, h / 2, w / 2, h - 6);
+      g.strokeTriangle(w / 2, 6, 14, h / 2, w / 2, h - 6);
+      g.fillStyle(0xffffff, 0.75).fillCircle(w / 2, h / 2, 16);
+      g.fillStyle(0x66ffbd, 0.55).fillCircle(w / 2, h / 2, 27);
+      g.lineStyle(3, 0x9cff7f, 0.72).strokeCircle(w / 2, h / 2, 52);
+      g.fillStyle(0x36f5ff, 0.9).fillCircle(w / 2, 12, 6).fillCircle(w / 2, h - 12, 6);
+    }, 172, 172);
+
+    make("boss-null", (g, w, h) => {
+      g.fillStyle(0x020208, 1).fillRoundedRect(10, 18, w - 20, h - 34, 20);
+      g.fillStyle(0x090b18, 1).fillTriangle(w / 2, h - 4, 18, 48, w - 18, 48);
+      g.lineStyle(5, 0xb7c9ff, 0.95).strokeRoundedRect(10, 18, w - 20, h - 34, 20);
+      g.lineStyle(4, 0xffffff, 0.72).strokeTriangle(w / 2, h - 4, 18, 48, w - 18, 48);
+      g.fillStyle(0x000000, 1).fillCircle(w / 2, h / 2, 35);
+      g.lineStyle(5, 0xffffff, 0.95).strokeCircle(w / 2, h / 2, 35);
+      g.lineStyle(3, 0xb7c9ff, 0.8).strokeCircle(w / 2, h / 2, 51);
+      g.fillStyle(0xff4778, 0.88).fillCircle(38, h / 2, 9).fillCircle(w - 38, h / 2, 9);
+      g.fillStyle(0xffffff, 0.72).fillCircle(w / 2 - 46, 40, 5).fillCircle(w / 2 + 46, 40, 5);
+      g.lineStyle(3, 0xb7c9ff, 0.6).lineBetween(30, h - 32, w - 30, h - 32);
+    }, 236, 160);
   }
 }
 
@@ -300,7 +374,7 @@ class MenuScene extends Phaser.Scene {
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵 / WASD 移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，撿取 P/H/B/S/W/O/M/G 強化", hudText(19, "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵 / WASD 移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，突破 6 關霓虹戰線", hudText(19, "#dffcff", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.55, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
     const startGame = () => {
       playSfx(this, "start");
@@ -329,7 +403,7 @@ class ResultScene extends Phaser.Scene {
     const clear = this.dataIn.mode === "clear";
     const records = saveScoreRecord({
       score: this.dataIn.score || 0,
-      stage: clear ? 3 : this.dataIn.stage || this.dataIn.nextLevel || 1,
+      stage: clear ? LEVELS.length : this.dataIn.stage || this.dataIn.nextLevel || 1,
       result: clear ? "CLEAR" : win ? "STAGE CLEAR" : "GAME OVER",
     });
     playSfx(this, clear ? "final" : win ? "stageClear" : "gameOver");
@@ -555,7 +629,7 @@ class GameScene extends Phaser.Scene {
 
   updateHud() {
     this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  MSL ${this.missiles}  SCORE ${this.score}`);
-    this.stageText.setText(`STAGE ${this.levelIndex + 1}/3`);
+    this.stageText.setText(`STAGE ${this.levelIndex + 1}/${LEVELS.length}`);
     if (this.bossActive && this.boss?.active) {
       const ratio = Phaser.Math.Clamp(this.boss.hp / this.boss.maxHp, 0, 1);
       this.bossBar.width = (WIDTH - 90) * ratio;
