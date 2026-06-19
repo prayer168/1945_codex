@@ -1310,8 +1310,16 @@ function pressed(...codes) {
 }
 
 function syncGameSize(scene, gameSize = scene.scale.gameSize) {
-  WIDTH = Math.max(320, Math.floor(gameSize.width));
-  HEIGHT = Math.max(480, Math.floor(gameSize.height));
+  const viewport = getViewportSize();
+  WIDTH = Math.max(320, Math.floor(gameSize?.width || viewport.width));
+  HEIGHT = Math.max(480, Math.floor(gameSize?.height || viewport.height));
+}
+
+function getViewportSize() {
+  return {
+    width: Math.max(320, Math.floor(window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 540)),
+    height: Math.max(480, Math.floor(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 840)),
+  };
 }
 
 function toggleFullscreen(scene) {
@@ -1324,11 +1332,11 @@ function toggleFullscreen(scene) {
   }
 }
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game",
-  width: window.innerWidth,
-  height: window.innerHeight,
+  width: getViewportSize().width,
+  height: getViewportSize().height,
   backgroundColor: "#03040c",
   physics: {
     default: "arcade",
@@ -1341,3 +1349,13 @@ new Phaser.Game({
   },
   scene: [BootScene, MenuScene, GameScene, ResultScene],
 });
+
+function forceGameResize() {
+  const size = getViewportSize();
+  game.scale.resize(size.width, size.height);
+}
+
+window.addEventListener("resize", forceGameResize);
+window.visualViewport?.addEventListener("resize", forceGameResize);
+window.addEventListener("orientationchange", () => setTimeout(forceGameResize, 120));
+setTimeout(forceGameResize, 0);
