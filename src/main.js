@@ -10,6 +10,11 @@ const WEAPONS = [
   { name: "SPREAD", color: 0xfff06a },
   { name: "CRUISE", color: 0x9cff7f },
 ];
+const BOSS_SPECS = [
+  { texture: "boss-orbit", body: [150, 78], y: 118, sway: 115, speed: 820 },
+  { texture: "boss-plasma", body: [110, 120], y: 132, sway: 86, speed: 620 },
+  { texture: "boss-abyss", body: [176, 102], y: 126, sway: 68, speed: 980 },
+];
 const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.UP,
   Phaser.Input.Keyboard.KeyCodes.DOWN,
@@ -137,13 +142,41 @@ class BootScene extends Phaser.Scene {
       }, type === "gunship" ? 76 : 54, type === "gunship" ? 70 : 54);
     });
 
-    make("boss", (g, w, h) => {
+    make("boss-orbit", (g, w, h) => {
       g.fillStyle(0x0d0d18, 1).fillRoundedRect(8, 18, w - 16, h - 34, 14);
-      g.lineStyle(5, 0xffffff, 0.95).strokeRoundedRect(8, 18, w - 16, h - 34, 14);
-      g.fillStyle(0xffffff, 0.55).fillCircle(w / 2, h / 2, 24);
-      g.lineStyle(3, 0xffffff, 0.75).lineBetween(24, h / 2, w - 24, h / 2);
+      g.lineStyle(5, 0x35ddff, 0.95).strokeRoundedRect(8, 18, w - 16, h - 34, 14);
+      g.fillStyle(0x35ddff, 0.3).fillRoundedRect(28, 34, w - 56, h - 66, 9);
+      g.fillStyle(0xffffff, 0.75).fillCircle(w / 2, h / 2, 22);
+      g.lineStyle(3, 0x9fffff, 0.85).lineBetween(22, h / 2, w - 22, h / 2);
       g.lineBetween(w / 2, 12, w / 2, h - 12);
-    }, 180, 128);
+      g.fillStyle(0x55f7ff, 0.9).fillCircle(32, h / 2, 8).fillCircle(w - 32, h / 2, 8);
+    }, 184, 126);
+
+    make("boss-plasma", (g, w, h) => {
+      g.fillStyle(0x16051f, 1).fillCircle(w / 2, h / 2, 42);
+      g.lineStyle(5, 0xff40df, 0.95).strokeCircle(w / 2, h / 2, 42);
+      g.lineStyle(4, 0xb955ff, 0.9);
+      g.strokeTriangle(w / 2, 5, 20, h - 15, w - 20, h - 15);
+      g.strokeTriangle(w / 2, h - 5, 20, 15, w - 20, 15);
+      g.fillStyle(0xffffff, 0.75).fillCircle(w / 2, h / 2, 18);
+      g.fillStyle(0xff40df, 0.5).fillCircle(w / 2, h / 2, 30);
+      g.lineStyle(3, 0xff8a2b, 0.85).lineBetween(18, h / 2, w - 18, h / 2);
+      g.fillStyle(0xff40df, 0.9).fillCircle(24, 24, 7).fillCircle(w - 24, 24, 7).fillCircle(24, h - 24, 7).fillCircle(w - 24, h - 24, 7);
+    }, 164, 164);
+
+    make("boss-abyss", (g, w, h) => {
+      g.fillStyle(0x120006, 1).fillRoundedRect(12, 22, w - 24, h - 44, 18);
+      g.fillStyle(0x25020c, 1).fillTriangle(w / 2, h - 4, 22, 42, w - 22, 42);
+      g.lineStyle(5, 0xff2544, 0.96).strokeRoundedRect(12, 22, w - 24, h - 44, 18);
+      g.lineStyle(4, 0xff6a7c, 0.8).strokeTriangle(w / 2, h - 4, 22, 42, w - 22, 42);
+      g.fillStyle(0xffffff, 0.78).fillCircle(w / 2, h / 2, 24);
+      g.fillStyle(0xff2544, 0.45).fillCircle(w / 2, h / 2, 38);
+      g.lineStyle(3, 0xffdf47, 0.75);
+      g.lineBetween(30, 46, w - 30, 46);
+      g.lineBetween(40, h - 42, w - 40, h - 42);
+      g.fillStyle(0xff2544, 0.9).fillCircle(35, h / 2, 10).fillCircle(w - 35, h / 2, 10);
+      g.fillStyle(0xa55cff, 0.9).fillCircle(w / 2 - 42, h / 2 + 32, 7).fillCircle(w / 2 + 42, h / 2 + 32, 7);
+    }, 220, 152);
   }
 }
 
@@ -725,13 +758,15 @@ class GameScene extends Phaser.Scene {
     this.clearEnemyBullets(false);
     this.addWarning("WARNING");
     playSfx(this, "warning");
-    this.boss = this.physics.add.image(WIDTH / 2, -100, "boss").setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
+    const bossSpec = BOSS_SPECS[this.levelIndex];
+    this.boss = this.physics.add.image(WIDTH / 2, -120, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
     this.boss.hp = this.level.boss.hp;
     this.boss.maxHp = this.level.boss.hp;
     this.boss.modeIndex = 0;
     this.boss.nextAttack = this.time.now + 1800;
-    this.boss.body.setSize(145, 86);
-    this.tweens.add({ targets: this.boss, y: 122, duration: 1800, ease: "Sine.easeOut" });
+    this.boss.spec = bossSpec;
+    this.boss.body.setSize(bossSpec.body[0], bossSpec.body[1]);
+    this.tweens.add({ targets: this.boss, y: bossSpec.y, duration: 1800, ease: "Sine.easeOut" });
     this.bossBarBg.setVisible(true);
     this.bossBar.setVisible(true);
     this.bossLabel.setText(this.level.boss.name).setVisible(true);
@@ -740,7 +775,7 @@ class GameScene extends Phaser.Scene {
   }
 
   updateBoss(time) {
-    this.boss.x = WIDTH / 2 + Math.sin(time / 820) * 105;
+    this.boss.x = WIDTH / 2 + Math.sin(time / this.boss.spec.speed) * this.boss.spec.sway;
     const rage = this.boss.hp < this.boss.maxHp * 0.45;
     if (time > this.boss.nextAttack) {
       const mode = this.level.boss.modes[this.boss.modeIndex++ % this.level.boss.modes.length];
