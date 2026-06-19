@@ -424,17 +424,17 @@ class GameScene extends Phaser.Scene {
   }
 
   updatePlayer(time) {
-    const left = this.cursors.left.isDown || this.keys.A.isDown;
-    const right = this.cursors.right.isDown || this.keys.D.isDown;
-    const up = this.cursors.up.isDown || this.keys.W.isDown;
-    const down = this.cursors.down.isDown || this.keys.S.isDown;
+    const left = this.cursors.left.isDown || this.keys.A.isDown || pressed("ArrowLeft", "KeyA", "a", "A");
+    const right = this.cursors.right.isDown || this.keys.D.isDown || pressed("ArrowRight", "KeyD", "d", "D");
+    const up = this.cursors.up.isDown || this.keys.W.isDown || pressed("ArrowUp", "KeyW", "w", "W");
+    const down = this.cursors.down.isDown || this.keys.S.isDown || pressed("ArrowDown", "KeyS", "s", "S");
     const vx = (right ? 1 : 0) - (left ? 1 : 0);
     const vy = (down ? 1 : 0) - (up ? 1 : 0);
     const v = new Phaser.Math.Vector2(vx, vy).normalize().scale(PLAYER_SPEED);
     this.player.setVelocity(v.x || 0, v.y || 0);
     this.player.setAlpha(time < this.player.invulnUntil && Math.floor(time / 90) % 2 ? 0.35 : 1);
-    if (this.keys.C.isDown && time > this.lastMissile + 520) this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
-    if ((this.keys.SPACE.isDown || this.pointerDown) && time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
+    if ((this.keys.C.isDown || pressed("KeyC", "c", "C")) && time > this.lastMissile + 520) this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
+    if ((this.keys.SPACE.isDown || pressed("Space", " ", "Spacebar") || this.pointerDown) && time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
       this.firePlayer(time);
     }
   }
@@ -1072,14 +1072,25 @@ function installGlobalKeyBlocker() {
     "ArrowRight",
     " ",
     "Spacebar",
+    "Space",
   ]);
-  window.addEventListener(
-    "keydown",
-    (event) => {
-      if (blocked.has(event.key)) event.preventDefault();
-    },
-    { passive: false },
-  );
+  const blockedCodes = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
+  window.__neon1945PressedKeys = window.__neon1945PressedKeys || {};
+  const syncKey = (event, isDown) => {
+    window.__neon1945PressedKeys[event.code] = isDown;
+    window.__neon1945PressedKeys[event.key] = isDown;
+    if (blocked.has(event.key) || blockedCodes.has(event.code)) event.preventDefault();
+  };
+  window.addEventListener("keydown", (event) => syncKey(event, true), { capture: true, passive: false });
+  window.addEventListener("keyup", (event) => syncKey(event, false), { capture: true, passive: false });
+  window.addEventListener("blur", () => {
+    window.__neon1945PressedKeys = {};
+  });
+}
+
+function pressed(...codes) {
+  const keys = window.__neon1945PressedKeys || {};
+  return codes.some((code) => !!keys[code]);
 }
 
 function syncGameSize(scene, gameSize = scene.scale.gameSize) {
