@@ -5,6 +5,11 @@ let WIDTH = Math.max(360, window.innerWidth || 540);
 let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
+const WEAPONS = [
+  { name: "VULCAN", color: 0x83faff },
+  { name: "SPREAD", color: 0xfff06a },
+  { name: "CRUISE", color: 0x9cff7f },
+];
 
 const LEVELS = [
   {
@@ -79,6 +84,19 @@ class BootScene extends Phaser.Scene {
       g.lineStyle(4, 0x2fefff, 0.9).strokeRoundedRect(7, 0, 18, 46, 9);
     }, 32, 48);
 
+    make("missile", (g, w, h) => {
+      g.fillStyle(0xeaffff, 1).fillTriangle(w / 2, 2, 8, h - 8, w - 8, h - 8);
+      g.fillStyle(0x52ff85, 1).fillRect(12, 22, 8, 16);
+      g.lineStyle(3, 0x9cff7f, 0.95).strokeTriangle(w / 2, 2, 8, h - 8, w - 8, h - 8);
+      g.fillStyle(0xfff06a, 0.95).fillCircle(w / 2, h - 5, 5);
+    }, 32, 44);
+
+    make("wingman", (g, w, h) => {
+      g.fillStyle(0x071828, 1).fillTriangle(w / 2, 3, 5, h - 7, w - 5, h - 7);
+      g.lineStyle(2, 0xfff06a, 0.95).strokeTriangle(w / 2, 3, 5, h - 7, w - 5, h - 7);
+      g.fillStyle(0x83faff, 1).fillCircle(w / 2, h - 8, 3);
+    }, 36, 42);
+
     make("enemyBullet", (g) => {
       g.fillStyle(0xfff0da, 1).fillCircle(16, 16, 5);
       g.lineStyle(3, 0xff326c, 0.95).strokeCircle(16, 16, 9);
@@ -121,11 +139,11 @@ class MenuScene extends Phaser.Scene {
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵 / WASD 移動\nSpace 或滑鼠左鍵射擊\n撿取 P/H/B/S/G 強化並突破三關", hudText(20, "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵 / WASD 移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，撿取 P/H/B/S/W/O/M/G 強化", hudText(19, "#dffcff", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.55, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
     const startGame = () => {
       playSfx(this, "start");
-      this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3 });
+      this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3, weaponType: 0, wingmen: 0, missiles: 3 });
     };
     neonButton(this, WIDTH / 2, HEIGHT * 0.68, "START", startGame);
     neonButton(this, WIDTH / 2, HEIGHT * 0.78, "FULLSCREEN", () => toggleFullscreen(this));
@@ -173,9 +191,12 @@ class ResultScene extends Phaser.Scene {
           score: this.dataIn.score,
           power: this.dataIn.power,
           lives: this.dataIn.lives,
+          weaponType: this.dataIn.weaponType,
+          wingmen: this.dataIn.wingmen,
+          missiles: this.dataIn.missiles,
         });
       } else {
-        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3 });
+        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3, weaponType: 0, wingmen: 0, missiles: 3 });
       }
     });
     neonButton(this, WIDTH / 2, HEIGHT * 0.77, "MENU", () => {
@@ -196,6 +217,9 @@ class GameScene extends Phaser.Scene {
     this.score = data.score ?? 0;
     this.power = data.power ?? 1;
     this.lives = data.lives ?? 3;
+    this.weaponType = data.weaponType ?? 0;
+    this.wingmanCount = data.wingmen ?? 0;
+    this.missiles = data.missiles ?? 3;
   }
 
   create() {
@@ -208,15 +232,17 @@ class GameScene extends Phaser.Scene {
     this.spawnCount = 0;
     this.enemyFireTimer = 0;
     this.lastShot = 0;
+    this.lastMissile = 0;
     this.pointerDown = false;
     this.shieldUntil = 0;
+    this.foregroundOffset = 0;
 
     this.add.rectangle(0, 0, WIDTH, HEIGHT, this.level.palette.bg).setOrigin(0);
     this.bg = this.add.graphics();
     this.gridOffset = 0;
     this.drawBackground();
 
-    this.playerBullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 120, runChildUpdate: false });
+    this.playerBullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 180, runChildUpdate: false });
     this.enemyBullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image, maxSize: 180, runChildUpdate: false });
     this.enemies = this.physics.add.group();
     this.pickups = this.physics.add.group();
@@ -227,9 +253,13 @@ class GameScene extends Phaser.Scene {
     this.player.invulnUntil = 0;
     this.player.body.setSize(34, 42).setOffset(15, 18);
     this.shield = this.add.circle(this.player.x, this.player.y, 42, 0x52faff, 0.12).setStrokeStyle(2, 0x8fffff, 0.85).setDepth(9).setVisible(false);
+    this.wingmanSprites = [
+      this.add.image(this.player.x - 58, this.player.y + 16, "wingman").setDepth(9).setBlendMode(Phaser.BlendModes.ADD).setVisible(false),
+      this.add.image(this.player.x + 58, this.player.y + 16, "wingman").setDepth(9).setBlendMode(Phaser.BlendModes.ADD).setVisible(false),
+    ];
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE");
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,Q,E,C,ONE,TWO,THREE");
     this.input.on("pointerdown", () => {
       resumeAudio(this);
       this.pointerDown = true;
@@ -252,14 +282,22 @@ class GameScene extends Phaser.Scene {
 
     this.input.keyboard.on("keydown-B", () => this.clearEnemyBullets(true));
     this.input.keyboard.on("keydown-F", () => toggleFullscreen(this));
+    this.input.keyboard.on("keydown-Q", () => this.cycleWeapon(-1));
+    this.input.keyboard.on("keydown-E", () => this.cycleWeapon(1));
+    this.input.keyboard.on("keydown-ONE", () => this.setWeapon(0));
+    this.input.keyboard.on("keydown-TWO", () => this.setWeapon(1));
+    this.input.keyboard.on("keydown-THREE", () => this.setWeapon(2));
+    this.input.keyboard.on("keydown-C", () => this.launchCruiseMissile(this.player.x, this.player.y - 20, true));
     this.scale.on("resize", (gameSize) => this.handleResize(gameSize));
   }
 
   update(time, delta) {
     if (this.isGameOver) return;
     this.gridOffset = (this.gridOffset + delta * 0.18) % 72;
+    this.foregroundOffset = (this.foregroundOffset + delta * 0.11) % WIDTH;
     this.drawBackground();
     this.updatePlayer(time);
+    this.updateWingmen(time);
     this.updateBullets();
     this.updateEnemies(time, delta);
     this.updatePickups();
@@ -284,6 +322,28 @@ class GameScene extends Phaser.Scene {
       const x = (i * 73) % WIDTH;
       this.bg.fillStyle(i % 2 ? p.accent : 0xffffff, 0.45).fillCircle(x, y, i % 3 === 0 ? 2 : 1);
     }
+    this.drawBottomSpace(p);
+  }
+
+  drawBottomSpace(p) {
+    const baseY = HEIGHT - 118;
+    this.bg.fillStyle(0x02040b, 0.82).fillRect(0, baseY, WIDTH, 118);
+    this.bg.fillStyle(p.accent, 0.09).fillEllipse(WIDTH * 0.18, HEIGHT + 38, WIDTH * 0.62, 176);
+    this.bg.lineStyle(2, p.accent, 0.28);
+    for (let x = -160 - this.foregroundOffset; x < WIDTH + 220; x += 140) {
+      const hullY = HEIGHT - 44 - ((x / 140) % 2) * 18;
+      this.bg.strokeTriangle(x, HEIGHT - 12, x + 72, hullY, x + 156, HEIGHT - 12);
+      this.bg.lineBetween(x + 18, HEIGHT - 30, x + 132, HEIGHT - 30);
+      this.bg.fillStyle(0xffffff, 0.36).fillCircle(x + 72, hullY + 16, 2);
+      this.bg.fillStyle(p.grid, 0.4).fillRect(x + 34, HEIGHT - 24, 28, 3);
+      this.bg.fillStyle(0xfff06a, 0.38).fillRect(x + 95, HEIGHT - 24, 22, 3);
+    }
+    for (let i = 0; i < 9; i++) {
+      const x = (i * 97 - this.foregroundOffset * (1.4 + i * 0.02)) % (WIDTH + 120);
+      const y = HEIGHT - 100 + (i % 4) * 22;
+      this.bg.fillStyle(i % 2 ? 0x33445f : 0x1c2638, 0.78).fillCircle(x < -40 ? x + WIDTH + 120 : x, y, 8 + (i % 3) * 5);
+    }
+    this.bg.lineStyle(3, p.accent, 0.48).lineBetween(0, baseY, WIDTH, baseY - 18);
   }
 
   makeParticles() {
@@ -319,7 +379,7 @@ class GameScene extends Phaser.Scene {
   }
 
   updateHud() {
-    this.hud.setText(`LIFE ${this.lives}  POWER Lv.${this.power}  SCORE ${this.score}  BEST ${Math.max(this.records.best, this.score)}`);
+    this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  MSL ${this.missiles}  SCORE ${this.score}`);
     this.stageText.setText(`STAGE ${this.levelIndex + 1}/3`);
     if (this.bossActive && this.boss?.active) {
       const ratio = Phaser.Math.Clamp(this.boss.hp / this.boss.maxHp, 0, 1);
@@ -338,31 +398,82 @@ class GameScene extends Phaser.Scene {
     const v = new Phaser.Math.Vector2(vx, vy).normalize().scale(PLAYER_SPEED);
     this.player.setVelocity(v.x || 0, v.y || 0);
     this.player.setAlpha(time < this.player.invulnUntil && Math.floor(time / 90) % 2 ? 0.35 : 1);
+    if (this.keys.C.isDown && time > this.lastMissile + 520) this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
     if ((this.keys.SPACE.isDown || this.pointerDown) && time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
       this.firePlayer(time);
     }
   }
 
+  updateWingmen(time) {
+    const offsets = [
+      { x: -54 - Math.sin(time / 260) * 7, y: 18 + Math.cos(time / 300) * 6 },
+      { x: 54 + Math.sin(time / 260) * 7, y: 18 + Math.cos(time / 300) * 6 },
+    ];
+    this.wingmanSprites.forEach((sprite, i) => {
+      sprite.setVisible(i < this.wingmanCount);
+      if (i < this.wingmanCount) sprite.setPosition(this.player.x + offsets[i].x, this.player.y + offsets[i].y);
+    });
+  }
+
   firePlayer(time) {
     this.lastShot = time;
-    const shots = [];
-    const mainSpeed = this.power >= 4 ? -720 : -620;
-    if (this.power === 1) shots.push([0, -6, 0, mainSpeed, "bullet"]);
-    if (this.power >= 2) shots.push([-12, -4, 0, mainSpeed, "bullet"], [12, -4, 0, mainSpeed, "bullet"]);
-    if (this.power >= 3) shots.push([-22, 2, -120, -570, "bullet"], [22, 2, 120, -570, "bullet"]);
-    if (this.power >= 4) shots.push([0, -14, 0, -780, "laser"], [-28, 8, -210, -545, "bullet"], [28, 8, 210, -545, "bullet"]);
-    if (this.power >= 5) shots.push([-38, 14, -70, -650, "bullet", true], [38, 14, 70, -650, "bullet", true]);
+    const shots = this.makeWeaponShots();
     shots.forEach(([ox, oy, vx, vy, tex, homing]) => {
-      const b = this.playerBullets.get(this.player.x + ox, this.player.y + oy, tex);
-      if (!b) return;
-      b.setActive(true).setVisible(true).setDepth(8).setBlendMode(Phaser.BlendModes.ADD).setTint(0x83faff);
-      b.body.enable = true;
-      b.body.setSize(tex === "laser" ? 12 : 10, tex === "laser" ? 44 : 24);
-      b.setVelocity(vx, vy);
-      b.damage = tex === "laser" ? 18 : 10;
-      b.homing = !!homing;
+      this.spawnPlayerShot(this.player.x + ox, this.player.y + oy, vx, vy, tex, homing);
     });
-    playSfx(this, this.power >= 4 ? "laser" : "shoot", 0.75 + this.power * 0.05);
+    this.wingmanSprites.forEach((sprite, i) => {
+      if (i >= this.wingmanCount) return;
+      this.spawnPlayerShot(sprite.x, sprite.y - 20, i === 0 ? -75 : 75, -620, "bullet", false, 7);
+    });
+    if (this.weaponType === 2 && this.missiles > 0 && time > this.lastMissile + 780) {
+      this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
+    }
+    playSfx(this, this.weaponType === 2 ? "missile" : this.power >= 4 || this.weaponType === 0 ? "laser" : "shoot", 0.75 + this.power * 0.05);
+  }
+
+  makeWeaponShots() {
+    const shots = [];
+    const p = this.power;
+    if (this.weaponType === 0) {
+      const speed = p >= 4 ? -820 : -700;
+      shots.push([0, -16, 0, speed, p >= 4 ? "laser" : "bullet"]);
+      if (p >= 2) shots.push([-14, -6, 0, -690, "bullet"], [14, -6, 0, -690, "bullet"]);
+      if (p >= 4) shots.push([-30, 8, -45, -660, "bullet"], [30, 8, 45, -660, "bullet"]);
+    } else if (this.weaponType === 1) {
+      shots.push([0, -10, 0, -640, "bullet"]);
+      const spread = p >= 4 ? [-240, -140, 140, 240] : [-145, 145];
+      spread.forEach((vx, i) => shots.push([vx < 0 ? -18 - i * 4 : 18 + i * 4, 0, vx, -560, "bullet"]));
+      if (p >= 3) shots.push([-34, 10, -300, -500, "bullet"], [34, 10, 300, -500, "bullet"]);
+      if (p >= 5) shots.push([0, -18, 0, -730, "laser"]);
+    } else {
+      shots.push([-10, -8, 0, -610, "bullet"], [10, -8, 0, -610, "bullet"]);
+      if (p >= 2) shots.push([-26, 8, -90, -570, "bullet"], [26, 8, 90, -570, "bullet"]);
+      if (p >= 4) shots.push([0, -18, 0, -720, "laser"]);
+    }
+    return shots;
+  }
+
+  spawnPlayerShot(x, y, vx, vy, tex, homing = false, damage = null) {
+    const b = this.playerBullets.get(x, y, tex);
+    if (!b) return null;
+    b.setActive(true).setVisible(true).setDepth(8).setBlendMode(Phaser.BlendModes.ADD).setTint(WEAPONS[this.weaponType].color);
+    b.body.enable = true;
+    b.body.setSize(tex === "laser" ? 12 : tex === "missile" ? 18 : 10, tex === "laser" ? 44 : tex === "missile" ? 34 : 24);
+    b.setVelocity(vx, vy);
+    b.damage = damage ?? (tex === "missile" ? 42 : tex === "laser" ? 18 : 10);
+    b.homing = !!homing;
+    b.missile = tex === "missile";
+    return b;
+  }
+
+  launchCruiseMissile(x, y, spendAmmo = false) {
+    if (spendAmmo && this.missiles <= 0) return;
+    if (spendAmmo) this.missiles--;
+    this.lastMissile = this.time.now;
+    const dir = this.missiles % 2 ? -95 : 95;
+    const b = this.spawnPlayerShot(x, y, dir, -430, "missile", true, 48 + this.power * 4);
+    if (b) b.setTint(0x9cff7f);
+    playSfx(this, "missile", 0.95);
   }
 
   updateBullets() {
@@ -372,6 +483,7 @@ class GameScene extends Phaser.Scene {
         const target = this.closestEnemy(b.x, b.y);
         if (target) this.physics.moveToObject(b, target, 680);
       }
+      if (b.missile) b.rotation = Phaser.Math.Angle.Between(0, 0, b.body.velocity.x, b.body.velocity.y) + Math.PI / 2;
       if (b.y < -60 || b.y > HEIGHT + 80 || b.x < -80 || b.x > WIDTH + 80) this.killSprite(b);
     });
     this.enemyBullets.children.each((b) => {
@@ -474,20 +586,20 @@ class GameScene extends Phaser.Scene {
     const y = e.y;
     this.explode(x, y, e.type === "gunship" || e.type === "elite" ? 32 : 18);
     this.score += e.score || 100;
-    if (Phaser.Math.Between(1, 100) <= 22) this.dropPickup(x, y);
+    if (Phaser.Math.Between(1, 100) <= 30) this.dropPickup(x, y);
     this.killSprite(e);
     playSfx(this, e.type === "gunship" || e.type === "elite" ? "bigExplosion" : "explosion");
   }
 
   dropPickup(x, y, forcedType) {
     const roll = Phaser.Math.Between(1, 100);
-    const type = forcedType || (roll <= 45 ? "P" : roll <= 61 ? "H" : roll <= 76 ? "B" : roll <= 88 ? "S" : "G");
+    const type = forcedType || (roll <= 28 ? "P" : roll <= 40 ? "W" : roll <= 52 ? "O" : roll <= 64 ? "M" : roll <= 74 ? "H" : roll <= 84 ? "B" : roll <= 93 ? "S" : "G");
     const tex = type === "G" ? "gem" : "gem";
     const p = this.pickups.create(x, y, tex);
     p.pickupType = type;
     p.setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
     p.body.setCircle(13, 3, 3);
-    p.setTint({ P: 0x55f7ff, H: 0x44ff7d, B: 0xffef64, S: 0xa76bff, G: 0xff5cf7 }[type]);
+    p.setTint({ P: 0x55f7ff, W: 0xfff06a, O: 0xffffff, M: 0x9cff7f, H: 0x44ff7d, B: 0xffef64, S: 0xa76bff, G: 0xff5cf7 }[type]);
     p.setVelocity(Phaser.Math.Between(-25, 25), 118);
     p.label = this.add.text(x, y, type, hudText(15, "#02050a", "center")).setOrigin(0.5).setDepth(10);
   }
@@ -510,13 +622,34 @@ class GameScene extends Phaser.Scene {
   collectPickup(player, p) {
     const type = p.pickupType;
     if (type === "P") this.power = Math.min(5, this.power + 1);
+    if (type === "W") this.cycleWeapon(1);
+    if (type === "O") this.wingmanCount = Math.min(2, this.wingmanCount + 1);
+    if (type === "M") this.missiles = Math.min(12, this.missiles + 3);
     if (type === "H") this.lives = Math.min(6, this.lives + 1);
     if (type === "B") this.clearEnemyBullets(true);
     if (type === "S") this.shieldUntil = this.time.now + 6500;
     if (type === "G") this.score += 650;
     p.label?.destroy();
     this.killSprite(p);
-    playSfx(this, type === "P" ? "powerUp" : type === "H" ? "heal" : type === "B" ? "bomb" : type === "S" ? "shield" : "gem");
+    playSfx(this, type === "P" || type === "W" || type === "O" ? "powerUp" : type === "H" ? "heal" : type === "B" ? "bomb" : type === "S" ? "shield" : type === "M" ? "missile" : "gem");
+  }
+
+  setWeapon(type) {
+    this.weaponType = Phaser.Math.Wrap(type, 0, WEAPONS.length);
+    this.addWeaponToast();
+    playSfx(this, "menu");
+  }
+
+  cycleWeapon(delta) {
+    this.setWeapon(this.weaponType + delta);
+  }
+
+  addWeaponToast() {
+    const t = this.add.text(WIDTH / 2, 112, WEAPONS[this.weaponType].name, hudText(20, "#fff2a8", "center"))
+      .setOrigin(0.5)
+      .setDepth(70)
+      .setShadow(0, 0, "#fff06a", 12);
+    this.tweens.add({ targets: t, y: 92, alpha: 0, duration: 650, ease: "Sine.easeOut", onComplete: () => t.destroy() });
   }
 
   hitPlayer(player, threat) {
@@ -626,6 +759,7 @@ class GameScene extends Phaser.Scene {
       boss.dropped = true;
       this.dropPickup(boss.x, boss.y + 45, "P");
       this.dropPickup(boss.x - 40, boss.y + 45, "S");
+      this.dropPickup(boss.x + 40, boss.y + 45, "O");
     }
     if (boss.hp <= 0) this.defeatBoss();
   }
@@ -648,6 +782,9 @@ class GameScene extends Phaser.Scene {
           score: this.score,
           power: this.power,
           lives: this.lives,
+          weaponType: this.weaponType,
+          wingmen: this.wingmanCount,
+          missiles: this.missiles,
           stage: this.levelIndex + 1,
           nextLevel: this.levelIndex + 1,
         });
@@ -813,6 +950,13 @@ const SFX = {
   heal: { duration: 0.18, tones: [{ from: 520, to: 780, duration: 0.16, type: "sine", gain: 0.35 }] },
   bomb: { duration: 0.28, tones: [{ from: 230, to: 55, duration: 0.25, type: "sawtooth", gain: 0.75 }] },
   shield: { duration: 0.26, tones: [{ from: 360, to: 720, duration: 0.23, type: "sine", gain: 0.4 }] },
+  missile: {
+    duration: 0.24,
+    tones: [
+      { from: 220, to: 520, duration: 0.18, type: "sawtooth", gain: 0.45 },
+      { from: 90, to: 55, duration: 0.22, type: "triangle", gain: 0.25 },
+    ],
+  },
   gem: { duration: 0.12, tones: [{ from: 940, to: 1320, duration: 0.1, type: "triangle", gain: 0.38 }] },
   damage: {
     duration: 0.3,
