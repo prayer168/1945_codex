@@ -6,8 +6,8 @@ let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
-const BOSS_SPAWN_TIME = 35000;
-const BOSS_SPAWN_WAVE = 42;
+const BOSS_SPAWN_TIME = 60000;
+const BOSS_SPAWN_WAVE = 78;
 const DIFFICULTIES = {
   easy: {
     label: "EASY",
