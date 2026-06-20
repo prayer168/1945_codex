@@ -399,6 +399,7 @@ class MenuScene extends Phaser.Scene {
   create() {
     syncGameSize(this);
     setupKeyboardCapture(this);
+    startMusic(this, "menu");
     const records = loadScoreRecords();
     this.selectedDifficulty = DEFAULT_DIFFICULTY;
     this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x03040c).setOrigin(0);
@@ -429,6 +430,7 @@ class MenuScene extends Phaser.Scene {
     const startGame = () => {
       const difficulty = getDifficulty(this.selectedDifficulty);
       playSfx(this, "start");
+      startMusic(this, "stage");
       this.scene.start("GameScene", {
         levelIndex: 0,
         score: 0,
@@ -468,6 +470,7 @@ class ResultScene extends Phaser.Scene {
       result: clear ? "CLEAR" : win ? "STAGE CLEAR" : "GAME OVER",
     });
     playSfx(this, clear ? "final" : win ? "stageClear" : "gameOver");
+    startMusic(this, clear ? "clear" : win ? "menu" : "gameOver");
     this.add.rectangle(0, 0, WIDTH, HEIGHT, clear ? 0x04000a : 0x050816).setOrigin(0);
     addStarfield(this, clear ? 0xff3947 : 0x15d9ff);
     const title = clear ? "FINAL CLEAR" : win ? "LEVEL COMPLETE" : "GAME OVER";
@@ -525,6 +528,7 @@ class GameScene extends Phaser.Scene {
   create() {
     syncGameSize(this);
     setupKeyboardCapture(this);
+    startMusic(this, "stage");
     this.records = loadScoreRecords();
     this.level = LEVELS[this.levelIndex];
     this.isGameOver = false;
@@ -719,10 +723,12 @@ class GameScene extends Phaser.Scene {
       this.physics.world.pause();
       this.time.paused = true;
       this.tweens.timeScale = 0;
+      setMusicPaused(true);
     } else {
       this.physics.world.resume();
       this.time.paused = false;
       this.tweens.timeScale = 1;
+      setMusicPaused(false);
     }
     this.pauseOverlay?.setVisible(this.isPaused);
     playSfx(this, "menu");
@@ -773,7 +779,7 @@ class GameScene extends Phaser.Scene {
     if (this.weaponType === 2 && this.missiles > 0 && time > this.lastMissile + 780) {
       this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
     }
-    playSfx(this, this.weaponType === 2 ? "missile" : this.power >= 4 || this.weaponType === 0 ? "laser" : "shoot", 0.75 + this.power * 0.05);
+    playSfx(this, this.weaponType === 2 ? "missile" : this.power >= 4 || this.weaponType === 0 ? "laser" : "shoot", 0.28 + this.power * 0.04);
   }
 
   makeWeaponShots() {
@@ -978,13 +984,14 @@ class GameScene extends Phaser.Scene {
     if (type === "G") this.score += 650;
     p.label?.destroy();
     this.killSprite(p);
-    playSfx(this, type === "P" || type === "W" || type === "O" ? "powerUp" : type === "H" ? "heal" : type === "B" ? "bomb" : type === "S" ? "shield" : type === "M" ? "missile" : "gem");
+    const pickupSfx = { P: "powerUp", W: "weaponSwitch", O: "wingman", H: "heal", B: "bomb", S: "shield", M: "missilePickup", G: "gem" };
+    playSfx(this, pickupSfx[type] || "gem");
   }
 
   setWeapon(type) {
     this.weaponType = Phaser.Math.Wrap(type, 0, WEAPONS.length);
     this.addWeaponToast();
-    playSfx(this, "menu");
+    playSfx(this, "weaponSwitch");
   }
 
   cycleWeapon(delta) {
@@ -1036,6 +1043,7 @@ class GameScene extends Phaser.Scene {
     this.clearEnemyBullets(false);
     this.addWarning("BOSS APPROACHING");
     playSfx(this, "warning");
+    startMusic(this, "boss");
     this.time.delayedCall(650, () => {
       if (!this.bossDead && this.bossActive) {
         this.createEnemy(this.level.enemies[0], WIDTH / 2 - 120, -40);
@@ -1072,6 +1080,7 @@ class GameScene extends Phaser.Scene {
   bossAttack(mode, rage) {
     const x = this.boss.x;
     const y = this.boss.y + 50;
+    playSfx(this, rage ? "bossRage" : "bossAttack", 0.55);
     if (mode === "lineStorm") {
       for (let i = -3; i <= 3; i++) this.fireEnemyBullet(x + i * 30, y, i * 22, rage ? 300 : 235);
     } else if (mode === "sideLasers") {
@@ -1197,6 +1206,168 @@ function getDifficulty(key) {
   return DIFFICULTIES[key] || DIFFICULTIES[DEFAULT_DIFFICULTY];
 }
 
+function startMusic(scene, mode = "stage") {
+  try {
+    const ctx = scene.sound.context;
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      window.__neon1945PendingMusic = { scene, mode };
+      resumeAudio(scene);
+      return;
+    }
+    const current = window.__neon1945Music;
+    if (current?.mode === mode && current?.ctx === ctx) {
+      setMusicPaused(false);
+      return;
+    }
+    stopMusic();
+    const pattern = MUSIC[mode] || MUSIC.stage;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, ctx.currentTime);
+    master.gain.exponentialRampToValueAtTime(pattern.gain, ctx.currentTime + 0.5);
+    master.connect(ctx.destination);
+    const state = { ctx, master, mode, step: 0, timer: null, paused: false };
+    const tick = () => playMusicStep(state);
+    tick();
+    state.timer = window.setInterval(tick, pattern.stepMs);
+    window.__neon1945Music = state;
+  } catch {
+    // Music is optional; gameplay should never depend on audio availability.
+  }
+}
+
+function stopMusic() {
+  const state = window.__neon1945Music;
+  if (!state) return;
+  window.clearInterval(state.timer);
+  try {
+    state.master.gain.cancelScheduledValues(state.ctx.currentTime);
+    state.master.gain.exponentialRampToValueAtTime(0.0001, state.ctx.currentTime + 0.18);
+    window.setTimeout(() => state.master.disconnect(), 260);
+  } catch {
+    // Already disconnected or unavailable.
+  }
+  window.__neon1945Music = null;
+}
+
+function setMusicPaused(paused) {
+  const state = window.__neon1945Music;
+  if (!state || state.paused === paused) return;
+  state.paused = paused;
+  const pattern = MUSIC[state.mode] || MUSIC.stage;
+  try {
+    state.master.gain.cancelScheduledValues(state.ctx.currentTime);
+    state.master.gain.exponentialRampToValueAtTime(paused ? 0.0001 : pattern.gain, state.ctx.currentTime + 0.18);
+  } catch {
+    // Ignore audio state races.
+  }
+}
+
+function playMusicStep(state) {
+  if (state.paused) return;
+  const pattern = MUSIC[state.mode] || MUSIC.stage;
+  const ctx = state.ctx;
+  const at = ctx.currentTime + 0.015;
+  const step = state.step++;
+  const beat = step % pattern.length;
+  const bass = pattern.bass[beat % pattern.bass.length];
+  const lead = pattern.lead[beat % pattern.lead.length];
+  const chord = pattern.chords[Math.floor(beat / 4) % pattern.chords.length];
+
+  if (bass) playTone(ctx, state.master, bass, at, 0.13, "sawtooth", 0.42, 90);
+  if (lead) playTone(ctx, state.master, lead, at + 0.012, 0.08, pattern.wave || "square", 0.17, 1200);
+  if (step % 8 === 0) chord.forEach((note, i) => playTone(ctx, state.master, note, at + i * 0.006, 0.42, "triangle", 0.08, 900));
+  if (pattern.drums && step % 4 === 0) playDrum(ctx, state.master, at, step % 16 === 0 ? "kick" : "tick");
+  if (pattern.drums && step % 8 === 6) playDrum(ctx, state.master, at, "snare");
+}
+
+function playTone(ctx, master, freq, at, duration, type, volume, slideTo = null) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, at);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, at + duration);
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(volume, at + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  osc.connect(gain);
+  gain.connect(master);
+  osc.start(at);
+  osc.stop(at + duration + 0.03);
+}
+
+function playDrum(ctx, master, at, type) {
+  if (type === "kick") {
+    playTone(ctx, master, 115, at, 0.11, "sine", 0.38, 42);
+    return;
+  }
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.06), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  src.buffer = buffer;
+  gain.gain.setValueAtTime(type === "snare" ? 0.12 : 0.045, at);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + (type === "snare" ? 0.08 : 0.035));
+  src.connect(gain);
+  gain.connect(master);
+  src.start(at);
+  src.stop(at + 0.09);
+}
+
+const MUSIC = {
+  menu: {
+    stepMs: 180,
+    length: 16,
+    gain: 0.018,
+    wave: "triangle",
+    drums: false,
+    bass: [110, 0, 165, 0, 146.8, 0, 196, 0],
+    lead: [440, 0, 554.4, 0, 493.9, 0, 659.3, 0, 587.3, 0, 493.9, 0, 554.4, 0, 440, 0],
+    chords: [[220, 277.2, 329.6], [196, 246.9, 293.7], [246.9, 311.1, 370], [220, 277.2, 329.6]],
+  },
+  stage: {
+    stepMs: 126,
+    length: 16,
+    gain: 0.024,
+    wave: "square",
+    drums: true,
+    bass: [110, 0, 110, 146.8, 0, 110, 165, 0, 98, 0, 98, 130.8, 0, 98, 146.8, 0],
+    lead: [440, 0, 523.3, 587.3, 659.3, 0, 587.3, 523.3, 493.9, 0, 440, 392, 440, 0, 587.3, 659.3],
+    chords: [[220, 261.6, 329.6], [196, 246.9, 293.7], [164.8, 220, 261.6], [196, 246.9, 329.6]],
+  },
+  boss: {
+    stepMs: 104,
+    length: 16,
+    gain: 0.029,
+    wave: "sawtooth",
+    drums: true,
+    bass: [73.4, 73.4, 0, 98, 73.4, 0, 110, 98, 82.4, 82.4, 0, 110, 82.4, 0, 123.5, 110],
+    lead: [293.7, 0, 349.2, 370, 392, 0, 466.2, 440, 392, 0, 370, 349.2, 293.7, 0, 440, 466.2],
+    chords: [[146.8, 174.6, 220], [164.8, 196, 246.9], [130.8, 164.8, 220], [146.8, 196, 246.9]],
+  },
+  clear: {
+    stepMs: 170,
+    length: 16,
+    gain: 0.023,
+    wave: "triangle",
+    drums: false,
+    bass: [130.8, 0, 164.8, 0, 196, 0, 261.6, 0],
+    lead: [523.3, 659.3, 784, 1046.5, 880, 784, 659.3, 523.3],
+    chords: [[261.6, 329.6, 392], [293.7, 370, 440], [329.6, 415.3, 493.9], [392, 493.9, 587.3]],
+  },
+  gameOver: {
+    stepMs: 220,
+    length: 8,
+    gain: 0.016,
+    wave: "sawtooth",
+    drums: false,
+    bass: [98, 0, 92.5, 0, 82.4, 0, 73.4, 0],
+    lead: [392, 370, 329.6, 293.7, 246.9, 220, 196, 0],
+    chords: [[196, 246.9, 293.7], [174.6, 220, 261.6], [164.8, 196, 246.9], [146.8, 174.6, 220]],
+  },
+};
+
 function loadScoreRecords() {
   try {
     const raw = window.localStorage.getItem(SCORE_KEY);
@@ -1240,7 +1411,21 @@ function saveScoreRecord(entry) {
 function resumeAudio(scene) {
   try {
     const ctx = scene.sound.context;
-    if (ctx?.state === "suspended") ctx.resume();
+    if (ctx?.state === "suspended") {
+      ctx.resume().then(() => {
+        const pending = window.__neon1945PendingMusic;
+        if (pending) {
+          window.__neon1945PendingMusic = null;
+          startMusic(pending.scene || scene, pending.mode);
+        }
+      });
+    } else {
+      const pending = window.__neon1945PendingMusic;
+      if (pending) {
+        window.__neon1945PendingMusic = null;
+        startMusic(pending.scene || scene, pending.mode);
+      }
+    }
   } catch {
     // Audio can be blocked before the first user gesture.
   }
@@ -1308,6 +1493,20 @@ const SFX = {
       { from: 980, to: 1480, duration: 0.12, delay: 0.06, type: "triangle", gain: 0.35 },
     ],
   },
+  weaponSwitch: {
+    duration: 0.18,
+    tones: [
+      { from: 740, to: 520, duration: 0.08, type: "square", gain: 0.28 },
+      { from: 520, to: 940, duration: 0.12, delay: 0.05, type: "triangle", gain: 0.32 },
+    ],
+  },
+  wingman: {
+    duration: 0.26,
+    tones: [
+      { from: 660, to: 1320, duration: 0.12, type: "sine", gain: 0.35 },
+      { from: 990, to: 1760, duration: 0.14, delay: 0.08, type: "triangle", gain: 0.28 },
+    ],
+  },
   heal: { duration: 0.18, tones: [{ from: 520, to: 780, duration: 0.16, type: "sine", gain: 0.35 }] },
   bomb: { duration: 0.28, tones: [{ from: 230, to: 55, duration: 0.25, type: "sawtooth", gain: 0.75 }] },
   shield: { duration: 0.26, tones: [{ from: 360, to: 720, duration: 0.23, type: "sine", gain: 0.4 }] },
@@ -1316,6 +1515,13 @@ const SFX = {
     tones: [
       { from: 220, to: 520, duration: 0.18, type: "sawtooth", gain: 0.45 },
       { from: 90, to: 55, duration: 0.22, type: "triangle", gain: 0.25 },
+    ],
+  },
+  missilePickup: {
+    duration: 0.22,
+    tones: [
+      { from: 330, to: 660, duration: 0.13, type: "sawtooth", gain: 0.32 },
+      { from: 660, to: 990, duration: 0.09, delay: 0.08, type: "square", gain: 0.22 },
     ],
   },
   gem: { duration: 0.12, tones: [{ from: 940, to: 1320, duration: 0.1, type: "triangle", gain: 0.38 }] },
@@ -1331,6 +1537,20 @@ const SFX = {
     tones: [
       { from: 210, to: 210, duration: 0.22, type: "square", gain: 0.55 },
       { from: 210, to: 210, duration: 0.22, delay: 0.28, type: "square", gain: 0.55 },
+    ],
+  },
+  bossAttack: {
+    duration: 0.12,
+    tones: [
+      { from: 220, to: 165, duration: 0.1, type: "sawtooth", gain: 0.28 },
+      { from: 880, to: 640, duration: 0.08, type: "square", gain: 0.12 },
+    ],
+  },
+  bossRage: {
+    duration: 0.18,
+    tones: [
+      { from: 160, to: 80, duration: 0.16, type: "sawtooth", gain: 0.4 },
+      { from: 1220, to: 520, duration: 0.12, type: "square", gain: 0.18 },
     ],
   },
   bossHit: { duration: 0.08, tones: [{ from: 260, to: 170, duration: 0.07, type: "sawtooth", gain: 0.3 }] },
