@@ -10,7 +10,7 @@ const BOSS_SPAWN_TIME = 60000;
 const DIFFICULTIES = {
   easy: {
     label: "EASY",
-    lives: 5,
+    lives: 4,
     enemyHp: 0.75,
     bossHp: 0.75,
     bulletSpeed: 0.78,
@@ -41,7 +41,7 @@ const DEFAULT_DIFFICULTY = "normal";
 const WEAPONS = [
   { name: "VULCAN", color: 0x83faff },
   { name: "SPREAD", color: 0xfff06a },
-  { name: "CRUISE", color: 0x9cff7f },
+  { name: "LASER", color: 0x9cff7f },
 ];
 const BOSS_SPECS = [
   { texture: "boss-orbit", body: [150, 78], y: 118, sway: 115, speed: 820 },
@@ -60,6 +60,7 @@ const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.Q,
   Phaser.Input.Keyboard.KeyCodes.E,
   Phaser.Input.Keyboard.KeyCodes.C,
+  Phaser.Input.Keyboard.KeyCodes.M,
   Phaser.Input.Keyboard.KeyCodes.B,
   Phaser.Input.Keyboard.KeyCodes.P,
   Phaser.Input.Keyboard.KeyCodes.ESC,
@@ -400,14 +401,14 @@ class MenuScene extends Phaser.Scene {
     syncGameSize(this);
     setupKeyboardCapture(this);
     startMusic(this, "menu");
-    const records = loadScoreRecords();
     this.selectedDifficulty = DEFAULT_DIFFICULTY;
+    const records = loadScoreRecords(this.selectedDifficulty);
     this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x03040c).setOrigin(0);
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.42, "方向鍵移動，自動射擊\nSpace 炸彈清彈，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，P / Esc 暫停", hudText(18, "#dffcff", "center")).setOrigin(0.5);
-    this.add.text(WIDTH / 2, HEIGHT * 0.53, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.42, "方向鍵移動，自動射擊\nSpace / B 炸彈，1/2/3 或 Q/E 換武器\nM / C 發射巡弋飛彈，P / Esc 暫停", hudText(18, "#dffcff", "center")).setOrigin(0.5);
+    const recordText = this.add.text(WIDTH / 2, HEIGHT * 0.53, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.6, "DIFFICULTY", hudText(15, "#8ffcff", "center")).setOrigin(0.5);
     const difficultyButtons = DIFFICULTY_ORDER.map((key, i) => {
       const button = neonButton(this, WIDTH / 2 + (i - 1) * 112, HEIGHT * 0.66, DIFFICULTIES[key].label, () => {
@@ -425,6 +426,8 @@ class MenuScene extends Phaser.Scene {
         button.box.setStrokeStyle(active ? 3 : 2, active ? 0xfff06a : 0x27e7ff, 1);
         button.text.setColor(active ? "#fff2a8" : "#dffcff");
       });
+      const nextRecords = loadScoreRecords(this.selectedDifficulty);
+      recordText.setText(`BEST ${nextRecords.best}    LAST ${nextRecords.last}`);
     };
     refreshDifficulty();
     const startGame = () => {
@@ -439,6 +442,9 @@ class MenuScene extends Phaser.Scene {
         weaponType: 0,
         wingmen: 0,
         missiles: 3,
+        bombs: 3,
+        combo: 0,
+        bestCombo: 0,
         difficulty: this.selectedDifficulty,
       });
     };
@@ -466,8 +472,10 @@ class ResultScene extends Phaser.Scene {
     const clear = this.dataIn.mode === "clear";
     const records = saveScoreRecord({
       score: this.dataIn.score || 0,
+      combo: this.dataIn.combo || this.dataIn.bestCombo || 0,
       stage: clear ? LEVELS.length : this.dataIn.stage || this.dataIn.nextLevel || 1,
       result: clear ? "CLEAR" : win ? "STAGE CLEAR" : "GAME OVER",
+      difficulty: difficultyKey,
     });
     playSfx(this, clear ? "final" : win ? "stageClear" : "gameOver");
     startMusic(this, clear ? "clear" : win ? "menu" : "gameOver");
@@ -476,11 +484,11 @@ class ResultScene extends Phaser.Scene {
     const title = clear ? "FINAL CLEAR" : win ? "LEVEL COMPLETE" : "GAME OVER";
     this.add.text(WIDTH / 2, HEIGHT * 0.25, title, hudText(44, clear ? "#ffd6df" : "#dffcff", "center")).setOrigin(0.5).setShadow(0, 0, clear ? "#ff244a" : "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.36, `SCORE ${this.dataIn.score || 0}`, hudText(24, "#fff2a8")).setOrigin(0.5);
-    this.add.text(WIDTH / 2, HEIGHT * 0.41, `BEST ${records.best}    LAST ${records.last}`, hudText(17, records.isNewBest ? "#79fff2" : "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.41, `BEST ${records.best}    LAST ${records.last}    MAX COMBO ${this.dataIn.combo || this.dataIn.bestCombo || 0}`, hudText(17, records.isNewBest ? "#79fff2" : "#dffcff", "center")).setOrigin(0.5);
     if (records.isNewBest) {
       this.add.text(WIDTH / 2, HEIGHT * 0.45, "NEW RECORD", hudText(18, "#ff5cf7", "center")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 12);
     }
-    const recent = records.history.slice(0, 3).map((r, i) => `${i + 1}. ${r.score}  ${r.result}`).join("\n");
+    const recent = records.history.slice(0, 3).map((r, i) => `${i + 1}. ${r.score}  ${r.result}  C${r.combo || 0}`).join("\n");
     this.add.text(WIDTH / 2, HEIGHT * 0.52, recent, hudText(15, "#bfefff", "center")).setOrigin(0.5);
     const label = clear || !win ? "RESTART" : "NEXT LEVEL";
     neonButton(this, WIDTH / 2, HEIGHT * 0.66, label, () => {
@@ -494,10 +502,13 @@ class ResultScene extends Phaser.Scene {
           weaponType: this.dataIn.weaponType,
           wingmen: this.dataIn.wingmen,
           missiles: this.dataIn.missiles,
+          bombs: this.dataIn.bombs,
+          combo: this.dataIn.combo,
+          bestCombo: this.dataIn.bestCombo,
           difficulty: difficultyKey,
         });
       } else {
-        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: difficulty.lives, weaponType: 0, wingmen: 0, missiles: 3, difficulty: difficultyKey });
+        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: difficulty.lives, weaponType: 0, wingmen: 0, missiles: 3, bombs: 3, combo: 0, bestCombo: 0, difficulty: difficultyKey });
       }
     });
     neonButton(this, WIDTH / 2, HEIGHT * 0.77, "MENU", () => {
@@ -523,6 +534,10 @@ class GameScene extends Phaser.Scene {
     this.weaponType = data.weaponType ?? 0;
     this.wingmanCount = data.wingmen ?? 0;
     this.missiles = data.missiles ?? 3;
+    this.bombs = data.bombs ?? 3;
+    this.combo = data.combo ?? 0;
+    this.bestCombo = data.bestCombo ?? 0;
+    this.comboUntil = 0;
   }
 
   create() {
@@ -570,6 +585,7 @@ class GameScene extends Phaser.Scene {
       Q: Phaser.Input.Keyboard.KeyCodes.Q,
       E: Phaser.Input.Keyboard.KeyCodes.E,
       C: Phaser.Input.Keyboard.KeyCodes.C,
+      M: Phaser.Input.Keyboard.KeyCodes.M,
       ONE: Phaser.Input.Keyboard.KeyCodes.ONE,
       TWO: Phaser.Input.Keyboard.KeyCodes.TWO,
       THREE: Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -604,7 +620,8 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ONE", () => this.setWeapon(0));
     this.input.keyboard.on("keydown-TWO", () => this.setWeapon(1));
     this.input.keyboard.on("keydown-THREE", () => this.setWeapon(2));
-    this.input.keyboard.on("keydown-C", () => this.launchCruiseMissile(this.player.x, this.player.y - 20, true));
+    this.input.keyboard.on("keydown-C", () => this.launchCruiseVolley(this.player.x, this.player.y - 20, true));
+    this.input.keyboard.on("keydown-M", () => this.launchCruiseVolley(this.player.x, this.player.y - 20, true));
     this.input.keyboard.on("keydown-P", (event) => this.togglePause(event));
     this.input.keyboard.on("keydown-ESC", (event) => this.togglePause(event));
     this.scale.on("resize", (gameSize) => this.handleResize(gameSize));
@@ -682,6 +699,8 @@ class GameScene extends Phaser.Scene {
     this.bossBarBg = this.add.rectangle(WIDTH / 2, 64, WIDTH - 90, 14, 0x220814, 0.85).setDepth(51).setVisible(false);
     this.bossBar = this.add.rectangle(45, 64, WIDTH - 90, 14, 0xff315d, 1).setOrigin(0, 0.5).setDepth(52).setVisible(false);
     this.bossLabel = this.add.text(WIDTH / 2, 77, "", hudText(13, "#ffd6df", "center")).setOrigin(0.5, 0).setDepth(52).setVisible(false);
+    this.comboText = this.add.text(WIDTH / 2, 48, "", hudText(17, "#8ffcff", "center")).setOrigin(0.5, 0).setDepth(52).setShadow(0, 0, "#21e7ff", 10);
+    this.comboBar = this.add.rectangle(WIDTH / 2, 72, WIDTH * 0.34, 4, 0x27e7ff, 0.75).setDepth(52).setVisible(false);
   }
 
   createPauseOverlay() {
@@ -701,13 +720,25 @@ class GameScene extends Phaser.Scene {
     this.bossBarBg?.setPosition(WIDTH / 2, 64).setSize(WIDTH - 90, 14);
     if (this.bossBar) this.bossBar.setPosition(45, 64);
     this.bossLabel?.setPosition(WIDTH / 2, 77);
+    this.comboText?.setPosition(WIDTH / 2, 48);
+    this.comboBar?.setPosition(WIDTH / 2, 72);
     this.pauseOverlay?.setPosition(WIDTH / 2, HEIGHT / 2);
     this.pauseBg?.setSize(WIDTH, HEIGHT);
   }
 
   updateHud() {
-    this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  MSL ${this.missiles}  SCORE ${this.score}`);
+    if (this.combo > 0 && this.time.now > this.comboUntil) this.resetCombo();
+    this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  BOMB ${this.bombs}  MSL ${this.missiles}  SCORE ${this.score}`);
     this.stageText.setText(`${this.difficulty.label}  STAGE ${this.levelIndex + 1}/${LEVELS.length}`);
+    if (this.combo >= 2) {
+      const ratio = Phaser.Math.Clamp((this.comboUntil - this.time.now) / 2600, 0, 1);
+      const hotColor = this.combo >= 20 ? "#ff3864" : this.combo >= 10 ? "#fff06a" : "#8ffcff";
+      this.comboText.setText(`${this.combo} COMBO  x${this.comboMultiplier().toFixed(1)}`).setColor(hotColor).setVisible(true);
+      this.comboBar.setSize(Math.max(1, WIDTH * 0.34 * ratio), 4).setFillStyle(this.combo >= 20 ? 0xff3864 : this.combo >= 10 ? 0xfff06a : 0x27e7ff, 0.78).setVisible(true);
+    } else {
+      this.comboText.setVisible(false);
+      this.comboBar.setVisible(false);
+    }
     if (this.bossActive && this.boss?.active) {
       const ratio = Phaser.Math.Clamp(this.boss.hp / this.boss.maxHp, 0, 1);
       this.bossBar.width = (WIDTH - 90) * ratio;
@@ -736,7 +767,15 @@ class GameScene extends Phaser.Scene {
 
   triggerBomb(event) {
     if (event?.repeat || this.isGameOver || this.isPaused) return;
+    if (this.bombs <= 0) {
+      playSfx(this, "menu", 0.55);
+      return;
+    }
+    this.bombs--;
     this.clearEnemyBullets(true);
+    this.damageAllEnemies(8, 30);
+    this.cameras.main.flash(180, 255, 245, 140);
+    this.cameras.main.shake(120, 0.008);
   }
 
   updatePlayer(time) {
@@ -749,7 +788,7 @@ class GameScene extends Phaser.Scene {
     const v = new Phaser.Math.Vector2(vx, vy).normalize().scale(PLAYER_SPEED);
     this.player.setVelocity(v.x || 0, v.y || 0);
     this.player.setAlpha(time < this.player.invulnUntil && Math.floor(time / 90) % 2 ? 0.35 : 1);
-    if ((this.keys.C.isDown || pressed("KeyC", "c", "C")) && time > this.lastMissile + 520) this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
+    if ((this.keys.C.isDown || this.keys.M.isDown || pressed("KeyC", "c", "C", "KeyM", "m", "M")) && time > this.lastMissile + 620) this.launchCruiseVolley(this.player.x, this.player.y - 20, true);
     if (time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
       this.firePlayer(time);
     }
@@ -776,9 +815,6 @@ class GameScene extends Phaser.Scene {
       if (i >= this.wingmanCount) return;
       this.spawnPlayerShot(sprite.x, sprite.y - 20, i === 0 ? -75 : 75, -620, "bullet", false, 7);
     });
-    if (this.weaponType === 2 && this.missiles > 0 && time > this.lastMissile + 780) {
-      this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
-    }
     playSfx(this, this.weaponType === 2 ? "missile" : this.power >= 4 || this.weaponType === 0 ? "laser" : "shoot", 0.28 + this.power * 0.04);
   }
 
@@ -798,8 +834,9 @@ class GameScene extends Phaser.Scene {
       if (p >= 5) shots.push([0, -18, 0, -730, "laser"]);
     } else {
       shots.push([-10, -8, 0, -610, "bullet"], [10, -8, 0, -610, "bullet"]);
-      if (p >= 2) shots.push([-26, 8, -90, -570, "bullet"], [26, 8, 90, -570, "bullet"]);
-      if (p >= 4) shots.push([0, -18, 0, -720, "laser"]);
+      if (p >= 2) shots.push([0, -18, 0, -720, "laser"]);
+      if (p >= 3) shots.push([-16, -4, 0, -690, "laser"], [16, -4, 0, -690, "laser"]);
+      if (p >= 4) shots.push([-28, 8, -55, -650, "bullet"], [28, 8, 55, -650, "bullet"]);
     }
     return shots;
   }
@@ -817,13 +854,14 @@ class GameScene extends Phaser.Scene {
     return b;
   }
 
-  launchCruiseMissile(x, y, spendAmmo = false) {
+  launchCruiseVolley(x, y, spendAmmo = false) {
     if (spendAmmo && this.missiles <= 0) return;
     if (spendAmmo) this.missiles--;
     this.lastMissile = this.time.now;
-    const dir = this.missiles % 2 ? -95 : 95;
-    const b = this.spawnPlayerShot(x, y, dir, -430, "missile", true, 48 + this.power * 4);
-    if (b) b.setTint(0x9cff7f);
+    [-95, 95].forEach((dir) => {
+      const b = this.spawnPlayerShot(x + dir * 0.12, y, dir, -430, "missile", true, 48 + this.power * 4);
+      if (b) b.setTint(0x9cff7f);
+    });
     playSfx(this, "missile", 0.95);
   }
 
@@ -938,7 +976,8 @@ class GameScene extends Phaser.Scene {
     const x = e.x;
     const y = e.y;
     this.explode(x, y, e.type === "gunship" || e.type === "elite" ? 32 : 18);
-    this.score += e.score || 100;
+    this.registerKill();
+    this.addScore(e.score || 100);
     if (Phaser.Math.Between(1, 100) <= 30) this.dropPickup(x, y);
     this.killSprite(e);
     playSfx(this, e.type === "gunship" || e.type === "elite" ? "bigExplosion" : "explosion");
@@ -946,13 +985,13 @@ class GameScene extends Phaser.Scene {
 
   dropPickup(x, y, forcedType) {
     const roll = Phaser.Math.Between(1, 100);
-    const type = forcedType || (roll <= 28 ? "P" : roll <= 40 ? "W" : roll <= 52 ? "O" : roll <= 64 ? "M" : roll <= 74 ? "H" : roll <= 84 ? "B" : roll <= 93 ? "S" : "G");
+    const type = forcedType || (roll <= 28 ? "P" : roll <= 40 ? "W" : roll <= 52 ? "O" : roll <= 64 ? "C" : roll <= 74 ? "H" : roll <= 84 ? "B" : roll <= 93 ? "S" : "G");
     const tex = type === "G" ? "gem" : "gem";
     const p = this.pickups.create(x, y, tex);
     p.pickupType = type;
     p.setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
     p.body.setCircle(13, 3, 3);
-    p.setTint({ P: 0x55f7ff, W: 0xfff06a, O: 0xffffff, M: 0x9cff7f, H: 0x44ff7d, B: 0xffef64, S: 0xa76bff, G: 0xff5cf7 }[type]);
+    p.setTint({ P: 0x55f7ff, W: 0xfff06a, O: 0xffffff, C: 0x9cff7f, H: 0x44ff7d, B: 0xffef64, S: 0xa76bff, G: 0xff5cf7 }[type]);
     p.setVelocity(Phaser.Math.Between(-25, 25), 118);
     p.label = this.add.text(x, y, type, hudText(15, "#02050a", "center")).setOrigin(0.5).setDepth(10);
   }
@@ -974,17 +1013,20 @@ class GameScene extends Phaser.Scene {
 
   collectPickup(player, p) {
     const type = p.pickupType;
-    if (type === "P") this.power = Math.min(5, this.power + 1);
+    if (type === "P") {
+      this.power = Math.min(4, this.power + 1);
+      this.score += 50;
+    }
     if (type === "W") this.cycleWeapon(1);
     if (type === "O") this.wingmanCount = Math.min(2, this.wingmanCount + 1);
-    if (type === "M") this.missiles = Math.min(12, this.missiles + 3);
-    if (type === "H") this.lives = Math.min(6, this.lives + 1);
-    if (type === "B") this.clearEnemyBullets(true);
-    if (type === "S") this.shieldUntil = this.time.now + 6500;
-    if (type === "G") this.score += 650;
+    if (type === "C") this.missiles = Math.min(99, this.missiles + 3);
+    if (type === "H") this.lives = Math.min(5, this.lives + 1);
+    if (type === "B") this.bombs = Math.min(9, this.bombs + 1);
+    if (type === "S") this.shieldUntil = this.time.now + 8000;
+    if (type === "G") this.addScore(650, false);
     p.label?.destroy();
     this.killSprite(p);
-    const pickupSfx = { P: "powerUp", W: "weaponSwitch", O: "wingman", H: "heal", B: "bomb", S: "shield", M: "missilePickup", G: "gem" };
+    const pickupSfx = { P: "powerUp", W: "weaponSwitch", O: "wingman", H: "heal", B: "bomb", S: "shield", C: "missilePickup", G: "gem" };
     playSfx(this, pickupSfx[type] || "gem");
   }
 
@@ -1016,13 +1058,35 @@ class GameScene extends Phaser.Scene {
       else if (threat.type) this.destroyEnemy(threat);
     }
     this.lives--;
-    this.power = Math.max(1, this.power - 1);
+    this.power = 1;
+    this.wingmanCount = 0;
+    this.resetCombo();
     this.player.invulnUntil = this.time.now + 1800;
     this.cameras.main.shake(180, 0.012);
     this.explode(player.x, player.y, 34);
     this.clearEnemyBullets(false);
     playSfx(this, "damage");
     if (this.lives <= 0) this.gameOver();
+  }
+
+  registerKill() {
+    this.combo = Math.min(20, this.combo + 1);
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    this.comboUntil = this.time.now + 2600;
+  }
+
+  comboMultiplier() {
+    return 1 + Math.min(20, this.combo) * 0.1;
+  }
+
+  addScore(points, useCombo = true) {
+    const multiplier = useCombo ? this.comboMultiplier() : 1;
+    this.score += Math.round(points * multiplier);
+  }
+
+  resetCombo() {
+    this.combo = 0;
+    this.comboUntil = 0;
   }
 
   clearEnemyBullets(score) {
@@ -1034,6 +1098,20 @@ class GameScene extends Phaser.Scene {
       }
     });
     if (score) playSfx(this, "bomb");
+  }
+
+  damageAllEnemies(enemyDamage, bossDamage) {
+    this.enemies.children.each((e) => {
+      if (!e.active) return;
+      e.hp -= enemyDamage;
+      this.explode(e.x, e.y, 8);
+      if (e.hp <= 0) this.destroyEnemy(e);
+    });
+    if (this.bossActive && this.boss?.active) {
+      this.boss.hp -= bossDamage;
+      this.explode(this.boss.x, this.boss.y, 22);
+      if (this.boss.hp <= 0) this.defeatBoss();
+    }
   }
 
   startBoss() {
@@ -1131,7 +1209,7 @@ class GameScene extends Phaser.Scene {
   defeatBoss() {
     if (this.bossDead) return;
     this.bossDead = true;
-    this.score += 5000 + this.levelIndex * 2500;
+    this.addScore(3000 * (this.levelIndex + 1), false);
     this.explode(this.boss.x, this.boss.y, 90);
     this.killSprite(this.boss);
     this.clearEnemyBullets(true);
@@ -1139,7 +1217,7 @@ class GameScene extends Phaser.Scene {
     playSfx(this, "bossDown");
     this.time.delayedCall(1200, () => {
       if (this.levelIndex >= LEVELS.length - 1) {
-        this.scene.start("ResultScene", { mode: "clear", score: this.score, difficulty: this.difficultyKey });
+        this.scene.start("ResultScene", { mode: "clear", score: this.score, combo: this.bestCombo, difficulty: this.difficultyKey });
       } else {
         this.scene.start("ResultScene", {
           mode: "win",
@@ -1149,6 +1227,9 @@ class GameScene extends Phaser.Scene {
           weaponType: this.weaponType,
           wingmen: this.wingmanCount,
           missiles: this.missiles,
+          bombs: this.bombs,
+          combo: this.combo,
+          bestCombo: this.bestCombo,
           stage: this.levelIndex + 1,
           nextLevel: this.levelIndex + 1,
           difficulty: this.difficultyKey,
@@ -1198,7 +1279,7 @@ class GameScene extends Phaser.Scene {
   gameOver() {
     this.isGameOver = true;
     this.player.setVisible(false).setActive(false);
-    this.time.delayedCall(900, () => this.scene.start("ResultScene", { mode: "gameover", score: this.score, stage: this.levelIndex + 1, difficulty: this.difficultyKey }));
+    this.time.delayedCall(900, () => this.scene.start("ResultScene", { mode: "gameover", score: this.score, combo: this.bestCombo, stage: this.levelIndex + 1, difficulty: this.difficultyKey }));
   }
 }
 
@@ -1368,15 +1449,16 @@ const MUSIC = {
   },
 };
 
-function loadScoreRecords() {
+function loadScoreRecords(difficulty = DEFAULT_DIFFICULTY) {
   try {
     const raw = window.localStorage.getItem(SCORE_KEY);
     if (!raw) return { best: 0, last: 0, history: [] };
     const parsed = JSON.parse(raw);
+    const scoped = parsed.byDifficulty?.[difficulty] || parsed;
     return {
-      best: Number(parsed.best) || 0,
-      last: Number(parsed.last) || 0,
-      history: Array.isArray(parsed.history) ? parsed.history.slice(0, 5) : [],
+      best: Number(scoped.best) || 0,
+      last: Number(scoped.last) || 0,
+      history: Array.isArray(scoped.history) ? scoped.history.slice(0, 5) : [],
     };
   } catch {
     return { best: 0, last: 0, history: [] };
@@ -1384,28 +1466,35 @@ function loadScoreRecords() {
 }
 
 function saveScoreRecord(entry) {
-  const records = loadScoreRecords();
+  const difficulty = entry.difficulty || DEFAULT_DIFFICULTY;
+  const records = loadScoreRecords(difficulty);
   const score = Number(entry.score) || 0;
   const isNewBest = score > records.best;
-  const next = {
+  const nextScoped = {
     best: Math.max(records.best, score),
     last: score,
     history: [
       {
         score,
+        combo: entry.combo || 0,
         stage: entry.stage || 1,
         result: entry.result || "RUN",
+        difficulty,
         at: new Date().toISOString(),
       },
       ...records.history,
     ].slice(0, 5),
   };
   try {
-    window.localStorage.setItem(SCORE_KEY, JSON.stringify(next));
+    const raw = window.localStorage.getItem(SCORE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const byDifficulty = parsed.byDifficulty || {};
+    byDifficulty[difficulty] = nextScoped;
+    window.localStorage.setItem(SCORE_KEY, JSON.stringify({ byDifficulty }));
   } catch {
     // Browsers can disable storage in private or restricted modes.
   }
-  return { ...next, isNewBest };
+  return { ...nextScoped, isNewBest };
 }
 
 function resumeAudio(scene) {
