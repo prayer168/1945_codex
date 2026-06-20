@@ -48,12 +48,12 @@ const WEAPONS = [
   { name: "LASER", color: 0x9cff7f },
 ];
 const BOSS_SPECS = [
-  { texture: "boss-orbit", body: [150, 78], y: 188, sway: 86, speed: 820 },
-  { texture: "boss-plasma", body: [110, 120], y: 196, sway: 74, speed: 620 },
-  { texture: "boss-abyss", body: [176, 102], y: 192, sway: 62, speed: 980 },
-  { texture: "boss-forge", body: [184, 96], y: 194, sway: 76, speed: 760 },
-  { texture: "boss-quantum", body: [138, 126], y: 198, sway: 84, speed: 540 },
-  { texture: "boss-null", body: [198, 118], y: 190, sway: 50, speed: 1120 },
+  { texture: "boss-orbit", body: [260, 128], y: 218, sway: 72, speed: 820 },
+  { texture: "boss-plasma", body: [220, 160], y: 224, sway: 64, speed: 620 },
+  { texture: "boss-abyss", body: [292, 150], y: 222, sway: 56, speed: 980 },
+  { texture: "boss-forge", body: [292, 146], y: 224, sway: 68, speed: 760 },
+  { texture: "boss-quantum", body: [230, 176], y: 226, sway: 72, speed: 540 },
+  { texture: "boss-null", body: [310, 158], y: 220, sway: 48, speed: 1120 },
 ];
 const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.UP,
@@ -1205,8 +1205,9 @@ class GameScene extends Phaser.Scene {
       }
     });
     const bossSpec = BOSS_SPECS[this.levelIndex];
-    this.boss = this.physics.add.image(WIDTH / 2, bossSpec.y, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
-    this.boss.setScale(Math.min(1.22, Math.max(1, WIDTH / 430)));
+    this.boss = this.physics.add.image(WIDTH / 2, bossSpec.y, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint);
+    this.boss.setAlpha(0.98);
+    this.boss.setScale(Math.min(1.55, Math.max(1.28, WIDTH / 390)));
     const bossHp = Math.ceil(this.level.boss.hp * this.difficulty.bossHp);
     this.boss.hp = bossHp;
     this.boss.maxHp = bossHp;
@@ -1282,11 +1283,38 @@ class GameScene extends Phaser.Scene {
     const pulse = 0.65 + Math.sin(time / 120) * 0.22;
     const coreColor = this.boss.hp < this.boss.maxHp * 0.33 ? 0xff8a2b : this.boss.hp < this.boss.maxHp * 0.66 ? 0xfff06a : this.level.palette.accent;
     this.bossAura.clear();
-    this.bossAura.lineStyle(4, this.level.palette.accent, 0.85).strokeRoundedRect(this.boss.x - 118, this.boss.y - 58, 236, 116, 16);
-    this.bossAura.lineStyle(2, 0xffffff, 0.58).strokeRoundedRect(this.boss.x - 92, this.boss.y - 42, 184, 84, 12);
-    this.bossAura.fillStyle(coreColor, 0.35 + pulse * 0.25).fillCircle(this.boss.x, this.boss.y, 28 + pulse * 5);
-    this.bossAura.fillStyle(0xffffff, 0.85).fillCircle(this.boss.x, this.boss.y, 12 + pulse * 2);
-    this.bossAura.fillStyle(0x44ff7d, 0.8).fillCircle(this.boss.x - 76, this.boss.y + 22, 9).fillCircle(this.boss.x + 76, this.boss.y + 22, 9);
+    this.drawBossHull(this.bossAura, this.boss.x, this.boss.y, pulse, coreColor);
+  }
+
+  drawBossHull(g, x, y, pulse, coreColor) {
+    const accent = this.level.palette.accent;
+    const hot = this.level.boss.tint;
+    const w = Math.min(WIDTH - 62, 360);
+    const h = this.levelIndex === 4 ? 188 : 162;
+    const left = x - w / 2;
+    const top = y - h / 2;
+    g.fillStyle(0x030712, 0.96).fillRoundedRect(left + 34, top + 28, w - 68, h - 54, 22);
+    g.fillStyle(0x071624, 0.94).fillTriangle(x, top + h + 8, left + 22, top + 58, left + w - 22, top + 58);
+    g.fillStyle(0x0b1322, 0.98).fillRoundedRect(left + 72, top + 12, w - 144, h - 24, 18);
+    g.lineStyle(7, accent, 0.95).strokeRoundedRect(left + 34, top + 28, w - 68, h - 54, 22);
+    g.lineStyle(4, 0xffffff, 0.45).strokeRoundedRect(left + 72, top + 12, w - 144, h - 24, 18);
+    g.lineStyle(4, hot, 0.74).strokeTriangle(x, top + h + 8, left + 22, top + 58, left + w - 22, top + 58);
+    if (this.levelIndex % 3 === 1) {
+      g.lineStyle(5, hot, 0.85).strokeCircle(x, y, 62);
+      g.lineStyle(4, accent, 0.78).strokeTriangle(x, top + 4, left + 58, top + h - 12, left + w - 58, top + h - 12);
+    } else if (this.levelIndex % 3 === 2) {
+      g.fillStyle(0x160008, 0.9).fillRoundedRect(left + 18, y - 34, w - 36, 74, 10);
+      g.lineStyle(5, hot, 0.85).strokeRoundedRect(left + 18, y - 34, w - 36, 74, 10);
+      g.lineStyle(3, 0xfff06a, 0.78).lineBetween(left + 48, y - 10, left + w - 48, y - 10).lineBetween(left + 66, y + 28, left + w - 66, y + 28);
+    } else {
+      g.lineStyle(5, accent, 0.82).lineBetween(left + 28, y, left + w - 28, y);
+      g.lineStyle(4, hot, 0.7).lineBetween(x, top + 8, x, top + h - 8);
+    }
+    g.fillStyle(hot, 0.42 + pulse * 0.22).fillCircle(x, y, 42 + pulse * 7);
+    g.fillStyle(0xffffff, 0.92).fillCircle(x, y, 16 + pulse * 2);
+    g.fillStyle(accent, 0.96).fillCircle(left + 58, y + 30, 13).fillCircle(left + w - 58, y + 30, 13);
+    g.fillStyle(0xfff06a, 0.88).fillCircle(left + 96, top + 48, 8).fillCircle(left + w - 96, top + 48, 8);
+    g.lineStyle(2, 0xffffff, 0.36).strokeRoundedRect(left + 10, top + 6, w - 20, h + 12, 26);
   }
 
   hitBoss(b, boss) {
