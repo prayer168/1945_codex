@@ -6,7 +6,8 @@ let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
-const BOSS_SPAWN_TIME = 60000;
+const BOSS_SPAWN_TIME = 35000;
+const BOSS_SPAWN_WAVE = 42;
 const DIFFICULTIES = {
   easy: {
     label: "EASY",
@@ -641,7 +642,7 @@ class GameScene extends Phaser.Scene {
     this.updatePickups();
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
-    if (!this.bossActive && !this.bossDead && this.levelElapsed >= BOSS_SPAWN_TIME) this.startBoss();
+    if (!this.bossActive && !this.bossDead && this.shouldForceBoss()) this.startBoss();
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
   }
 
@@ -893,6 +894,11 @@ class GameScene extends Phaser.Scene {
     this.createEnemy(type, x, y);
     if (this.spawnCount % 7 === 5) this.createEnemy(pool[(this.spawnCount + 1) % pool.length], Phaser.Math.Between(50, WIDTH - 50), -90);
     this.spawnCount++;
+    if (this.shouldForceBoss()) this.startBoss();
+  }
+
+  shouldForceBoss() {
+    return !this.bossActive && !this.bossDead && (this.levelElapsed >= BOSS_SPAWN_TIME || this.spawnCount >= BOSS_SPAWN_WAVE);
   }
 
   createEnemy(type, x, y) {
@@ -1140,6 +1146,7 @@ class GameScene extends Phaser.Scene {
     });
     const bossSpec = BOSS_SPECS[this.levelIndex];
     this.boss = this.physics.add.image(WIDTH / 2, -120, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
+    this.boss.setScale(Math.min(1.22, Math.max(1, WIDTH / 430)));
     const bossHp = Math.ceil(this.level.boss.hp * this.difficulty.bossHp);
     this.boss.hp = bossHp;
     this.boss.maxHp = bossHp;
@@ -1147,7 +1154,7 @@ class GameScene extends Phaser.Scene {
     this.boss.nextAttack = this.time.now + 1800;
     this.boss.spec = bossSpec;
     this.boss.body.setSize(bossSpec.body[0], bossSpec.body[1]);
-    this.tweens.add({ targets: this.boss, y: bossSpec.y, duration: 1800, ease: "Sine.easeOut" });
+    this.tweens.add({ targets: this.boss, y: bossSpec.y, duration: 900, ease: "Sine.easeOut" });
     this.bossBarBg.setVisible(true);
     this.bossBar.setVisible(true);
     this.bossLabel.setText(this.level.boss.name).setVisible(true);
