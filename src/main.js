@@ -5,6 +5,9 @@ let WIDTH = Math.max(360, window.innerWidth || 540);
 let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
+const ENEMY_SPAWN_DELAY = 620;
+const BOSS_SPAWN_TIME = 30000;
+const BOSS_SPAWN_COUNT = 34;
 const WEAPONS = [
   { name: "VULCAN", color: 0x83faff },
   { name: "SPREAD", color: 0xfff06a },
@@ -517,8 +520,8 @@ class GameScene extends Phaser.Scene {
     this.createHud();
     this.addWarning(`${this.level.name}`);
 
-    this.spawnEvent = this.time.addEvent({ delay: 780, callback: this.spawnEnemy, callbackScope: this, loop: true });
-    this.time.delayedCall(42000, () => this.startBoss());
+    this.spawnEvent = this.time.addEvent({ delay: ENEMY_SPAWN_DELAY, callback: this.spawnEnemy, callbackScope: this, loop: true });
+    this.time.delayedCall(BOSS_SPAWN_TIME, () => this.startBoss());
 
     this.physics.add.overlap(this.playerBullets, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.playerBullets, this.enemyBullets, this.hitEnemyBullet, null, this);
@@ -550,7 +553,7 @@ class GameScene extends Phaser.Scene {
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
 
-    if (!this.bossActive && this.spawnCount >= 54) this.startBoss();
+    if (!this.bossActive && this.spawnCount >= BOSS_SPAWN_COUNT) this.startBoss();
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
   }
 
@@ -932,10 +935,15 @@ class GameScene extends Phaser.Scene {
     if (this.bossActive || this.bossDead) return;
     this.bossActive = true;
     this.spawnEvent?.remove();
-    this.enemies.children.each((e) => this.killSprite(e));
     this.clearEnemyBullets(false);
     this.addWarning("WARNING");
     playSfx(this, "warning");
+    this.time.delayedCall(650, () => {
+      if (!this.bossDead && this.bossActive) {
+        this.createEnemy(this.level.enemies[0], WIDTH / 2 - 120, -40);
+        this.createEnemy(this.level.enemies[1] || this.level.enemies[0], WIDTH / 2 + 120, -70);
+      }
+    });
     const bossSpec = BOSS_SPECS[this.levelIndex];
     this.boss = this.physics.add.image(WIDTH / 2, -120, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
     this.boss.hp = this.level.boss.hp;
