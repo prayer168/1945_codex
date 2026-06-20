@@ -557,6 +557,7 @@ class GameScene extends Phaser.Scene {
     this.pointerDown = false;
     this.shieldUntil = 0;
     this.foregroundOffset = 0;
+    this.levelElapsed = 0;
 
     this.add.rectangle(0, 0, WIDTH, HEIGHT, this.level.palette.bg).setOrigin(0);
     this.bg = this.add.graphics();
@@ -629,6 +630,7 @@ class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.isGameOver || this.isPaused) return;
+    this.levelElapsed += delta;
     this.gridOffset = (this.gridOffset + delta * 0.18) % 72;
     this.foregroundOffset = (this.foregroundOffset + delta * 0.11) % WIDTH;
     this.drawBackground();
@@ -639,6 +641,7 @@ class GameScene extends Phaser.Scene {
     this.updatePickups();
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
+    if (!this.bossActive && !this.bossDead && this.levelElapsed >= BOSS_SPAWN_TIME) this.startBoss();
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
   }
 
@@ -729,7 +732,8 @@ class GameScene extends Phaser.Scene {
   updateHud() {
     if (this.combo > 0 && this.time.now > this.comboUntil) this.resetCombo();
     this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  BOMB ${this.bombs}  MSL ${this.missiles}  SCORE ${this.score}`);
-    this.stageText.setText(`${this.difficulty.label}  STAGE ${this.levelIndex + 1}/${LEVELS.length}`);
+    const bossText = this.bossActive ? "BOSS" : `BOSS ${Math.max(0, Math.ceil((BOSS_SPAWN_TIME - this.levelElapsed) / 1000))}`;
+    this.stageText.setText(`${this.difficulty.label}  STAGE ${this.levelIndex + 1}/${LEVELS.length}  ${bossText}`);
     if (this.combo >= 2) {
       const ratio = Phaser.Math.Clamp((this.comboUntil - this.time.now) / 2600, 0, 1);
       const hotColor = this.combo >= 20 ? "#ff3864" : this.combo >= 10 ? "#fff06a" : "#8ffcff";
@@ -1119,6 +1123,12 @@ class GameScene extends Phaser.Scene {
     this.bossActive = true;
     this.spawnEvent?.remove();
     this.clearEnemyBullets(false);
+    this.enemies.children.each((e) => {
+      if (e.active) {
+        this.explode(e.x, e.y, 10);
+        this.killSprite(e);
+      }
+    });
     this.addWarning("BOSS APPROACHING");
     playSfx(this, "warning");
     startMusic(this, "boss");
