@@ -6,8 +6,8 @@ let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
-const BOSS_SPAWN_TIME = 30000;
-const BOSS_SPAWN_COUNT = 34;
+const BOSS_SPAWN_TIME = 18000;
+const BOSS_SPAWN_COUNT = 20;
 const WEAPONS = [
   { name: "VULCAN", color: 0x83faff },
   { name: "SPREAD", color: 0xfff06a },
@@ -936,7 +936,7 @@ class GameScene extends Phaser.Scene {
     this.bossActive = true;
     this.spawnEvent?.remove();
     this.clearEnemyBullets(false);
-    this.addWarning("WARNING");
+    this.addWarning("BOSS APPROACHING");
     playSfx(this, "warning");
     this.time.delayedCall(650, () => {
       if (!this.bossDead && this.bossActive) {
@@ -1049,10 +1049,11 @@ class GameScene extends Phaser.Scene {
   }
 
   addWarning(text) {
-    const t = this.add.text(WIDTH / 2, HEIGHT / 2, text, hudText(text === "WARNING" ? 42 : 32, text === "WARNING" ? "#ff3864" : "#dffcff", "center"))
+    const isBossWarning = text === "WARNING" || text.includes("BOSS");
+    const t = this.add.text(WIDTH / 2, HEIGHT / 2, text, hudText(isBossWarning ? 42 : 32, isBossWarning ? "#ff3864" : "#dffcff", "center"))
       .setOrigin(0.5)
       .setDepth(80)
-      .setShadow(0, 0, text === "WARNING" ? "#ff3864" : "#21e7ff", 18);
+      .setShadow(0, 0, isBossWarning ? "#ff3864" : "#21e7ff", 18);
     this.tweens.add({ targets: t, alpha: 0, scale: 1.18, duration: 1350, ease: "Sine.easeIn", onComplete: () => t.destroy() });
   }
 
