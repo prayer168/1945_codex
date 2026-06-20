@@ -7,7 +7,37 @@ const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
 const BOSS_SPAWN_TIME = 60000;
-const BOSS_SPAWN_COUNT = 90;
+const DIFFICULTIES = {
+  easy: {
+    label: "EASY",
+    lives: 5,
+    enemyHp: 0.75,
+    bossHp: 0.75,
+    bulletSpeed: 0.78,
+    spawnDelay: 760,
+    score: 0.8,
+  },
+  normal: {
+    label: "NORMAL",
+    lives: 3,
+    enemyHp: 1,
+    bossHp: 1,
+    bulletSpeed: 1,
+    spawnDelay: 620,
+    score: 1,
+  },
+  hard: {
+    label: "HARD",
+    lives: 2,
+    enemyHp: 1.3,
+    bossHp: 1.35,
+    bulletSpeed: 1.22,
+    spawnDelay: 520,
+    score: 1.25,
+  },
+};
+const DIFFICULTY_ORDER = ["easy", "normal", "hard"];
+const DEFAULT_DIFFICULTY = "normal";
 const WEAPONS = [
   { name: "VULCAN", color: 0x83faff },
   { name: "SPREAD", color: 0xfff06a },
@@ -31,6 +61,8 @@ const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.E,
   Phaser.Input.Keyboard.KeyCodes.C,
   Phaser.Input.Keyboard.KeyCodes.B,
+  Phaser.Input.Keyboard.KeyCodes.P,
+  Phaser.Input.Keyboard.KeyCodes.ESC,
   Phaser.Input.Keyboard.KeyCodes.ONE,
   Phaser.Input.Keyboard.KeyCodes.TWO,
   Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -368,17 +400,47 @@ class MenuScene extends Phaser.Scene {
     syncGameSize(this);
     setupKeyboardCapture(this);
     const records = loadScoreRecords();
+    this.selectedDifficulty = DEFAULT_DIFFICULTY;
     this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x03040c).setOrigin(0);
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，突破 6 關霓虹戰線", hudText(19, "#dffcff", "center")).setOrigin(0.5);
-    this.add.text(WIDTH / 2, HEIGHT * 0.55, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
-    const startGame = () => {
-      playSfx(this, "start");
-      this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3, weaponType: 0, wingmen: 0, missiles: 3 });
+    this.add.text(WIDTH / 2, HEIGHT * 0.42, "方向鍵移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，P / Esc 暫停", hudText(18, "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.53, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.6, "DIFFICULTY", hudText(15, "#8ffcff", "center")).setOrigin(0.5);
+    const difficultyButtons = DIFFICULTY_ORDER.map((key, i) => {
+      const button = neonButton(this, WIDTH / 2 + (i - 1) * 112, HEIGHT * 0.66, DIFFICULTIES[key].label, () => {
+        playSfx(this, "menu");
+        this.selectedDifficulty = key;
+        refreshDifficulty();
+      }, 104, 42, 15);
+      button.key = key;
+      return button;
+    });
+    const refreshDifficulty = () => {
+      difficultyButtons.forEach((button) => {
+        const active = button.key === this.selectedDifficulty;
+        button.box.setFillStyle(active ? 0x12394c : 0x07101e, active ? 0.95 : 0.82);
+        button.box.setStrokeStyle(active ? 3 : 2, active ? 0xfff06a : 0x27e7ff, 1);
+        button.text.setColor(active ? "#fff2a8" : "#dffcff");
+      });
     };
-    neonButton(this, WIDTH / 2, HEIGHT * 0.7, "START", startGame);
+    refreshDifficulty();
+    const startGame = () => {
+      const difficulty = getDifficulty(this.selectedDifficulty);
+      playSfx(this, "start");
+      this.scene.start("GameScene", {
+        levelIndex: 0,
+        score: 0,
+        power: 1,
+        lives: difficulty.lives,
+        weaponType: 0,
+        wingmen: 0,
+        missiles: 3,
+        difficulty: this.selectedDifficulty,
+      });
+    };
+    neonButton(this, WIDTH / 2, HEIGHT * 0.78, "START", startGame);
     this.input.keyboard.once("keydown-SPACE", startGame);
     this.scale.on("resize", () => this.scene.restart());
   }
@@ -396,6 +458,8 @@ class ResultScene extends Phaser.Scene {
   create() {
     syncGameSize(this);
     setupKeyboardCapture(this);
+    const difficultyKey = this.dataIn.difficulty || DEFAULT_DIFFICULTY;
+    const difficulty = getDifficulty(difficultyKey);
     const win = this.dataIn.mode === "win";
     const clear = this.dataIn.mode === "clear";
     const records = saveScoreRecord({
@@ -427,9 +491,10 @@ class ResultScene extends Phaser.Scene {
           weaponType: this.dataIn.weaponType,
           wingmen: this.dataIn.wingmen,
           missiles: this.dataIn.missiles,
+          difficulty: difficultyKey,
         });
       } else {
-        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: 3, weaponType: 0, wingmen: 0, missiles: 3 });
+        this.scene.start("GameScene", { levelIndex: 0, score: 0, power: 1, lives: difficulty.lives, weaponType: 0, wingmen: 0, missiles: 3, difficulty: difficultyKey });
       }
     });
     neonButton(this, WIDTH / 2, HEIGHT * 0.77, "MENU", () => {
@@ -447,9 +512,11 @@ class GameScene extends Phaser.Scene {
 
   init(data) {
     this.levelIndex = data.levelIndex ?? 0;
+    this.difficultyKey = data.difficulty || DEFAULT_DIFFICULTY;
+    this.difficulty = getDifficulty(this.difficultyKey);
     this.score = data.score ?? 0;
     this.power = data.power ?? 1;
-    this.lives = data.lives ?? 3;
+    this.lives = data.lives ?? this.difficulty.lives;
     this.weaponType = data.weaponType ?? 0;
     this.wingmanCount = data.wingmen ?? 0;
     this.missiles = data.missiles ?? 3;
@@ -461,6 +528,7 @@ class GameScene extends Phaser.Scene {
     this.records = loadScoreRecords();
     this.level = LEVELS[this.levelIndex];
     this.isGameOver = false;
+    this.isPaused = false;
     this.bossActive = false;
     this.bossDead = false;
     this.spawnCount = 0;
@@ -501,6 +569,8 @@ class GameScene extends Phaser.Scene {
       ONE: Phaser.Input.Keyboard.KeyCodes.ONE,
       TWO: Phaser.Input.Keyboard.KeyCodes.TWO,
       THREE: Phaser.Input.Keyboard.KeyCodes.THREE,
+      P: Phaser.Input.Keyboard.KeyCodes.P,
+      ESC: Phaser.Input.Keyboard.KeyCodes.ESC,
     });
     this.input.on("pointerdown", () => {
       resumeAudio(this);
@@ -510,9 +580,10 @@ class GameScene extends Phaser.Scene {
 
     this.makeParticles();
     this.createHud();
+    this.createPauseOverlay();
     this.addWarning(`${this.level.name}`);
 
-    this.spawnEvent = this.time.addEvent({ delay: ENEMY_SPAWN_DELAY, callback: this.spawnEnemy, callbackScope: this, loop: true });
+    this.spawnEvent = this.time.addEvent({ delay: this.difficulty.spawnDelay || ENEMY_SPAWN_DELAY, callback: this.spawnEnemy, callbackScope: this, loop: true });
     this.time.delayedCall(BOSS_SPAWN_TIME, () => this.startBoss());
 
     this.physics.add.overlap(this.playerBullets, this.enemies, this.hitEnemy, null, this);
@@ -529,11 +600,13 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-TWO", () => this.setWeapon(1));
     this.input.keyboard.on("keydown-THREE", () => this.setWeapon(2));
     this.input.keyboard.on("keydown-C", () => this.launchCruiseMissile(this.player.x, this.player.y - 20, true));
+    this.input.keyboard.on("keydown-P", (event) => this.togglePause(event));
+    this.input.keyboard.on("keydown-ESC", (event) => this.togglePause(event));
     this.scale.on("resize", (gameSize) => this.handleResize(gameSize));
   }
 
   update(time, delta) {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this.isPaused) return;
     this.gridOffset = (this.gridOffset + delta * 0.18) % 72;
     this.foregroundOffset = (this.foregroundOffset + delta * 0.11) % WIDTH;
     this.drawBackground();
@@ -544,8 +617,6 @@ class GameScene extends Phaser.Scene {
     this.updatePickups();
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
-
-    if (!this.bossActive && this.spawnCount >= BOSS_SPAWN_COUNT) this.startBoss();
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
   }
 
@@ -608,6 +679,14 @@ class GameScene extends Phaser.Scene {
     this.bossLabel = this.add.text(WIDTH / 2, 77, "", hudText(13, "#ffd6df", "center")).setOrigin(0.5, 0).setDepth(52).setVisible(false);
   }
 
+  createPauseOverlay() {
+    this.pauseBg = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.56).setOrigin(0.5);
+    const panel = this.add.rectangle(0, 0, Math.min(360, WIDTH - 42), 190, 0x061221, 0.88).setStrokeStyle(2, 0x27e7ff, 1);
+    const title = this.add.text(0, -48, "PAUSED", hudText(38, "#8ffcff", "center")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
+    const hint = this.add.text(0, 18, "P / Esc 繼續\n方向鍵移動，Space 射擊", hudText(18, "#dffcff", "center")).setOrigin(0.5);
+    this.pauseOverlay = this.add.container(WIDTH / 2, HEIGHT / 2, [this.pauseBg, panel, title, hint]).setDepth(100).setVisible(false);
+  }
+
   handleResize(gameSize) {
     syncGameSize(this, gameSize);
     this.physics.world.setBounds(0, 0, WIDTH, HEIGHT);
@@ -617,16 +696,35 @@ class GameScene extends Phaser.Scene {
     this.bossBarBg?.setPosition(WIDTH / 2, 64).setSize(WIDTH - 90, 14);
     if (this.bossBar) this.bossBar.setPosition(45, 64);
     this.bossLabel?.setPosition(WIDTH / 2, 77);
+    this.pauseOverlay?.setPosition(WIDTH / 2, HEIGHT / 2);
+    this.pauseBg?.setSize(WIDTH, HEIGHT);
   }
 
   updateHud() {
     this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  MSL ${this.missiles}  SCORE ${this.score}`);
-    this.stageText.setText(`STAGE ${this.levelIndex + 1}/${LEVELS.length}`);
+    this.stageText.setText(`${this.difficulty.label}  STAGE ${this.levelIndex + 1}/${LEVELS.length}`);
     if (this.bossActive && this.boss?.active) {
       const ratio = Phaser.Math.Clamp(this.boss.hp / this.boss.maxHp, 0, 1);
       this.bossBar.width = (WIDTH - 90) * ratio;
       this.bossBar.fillColor = ratio < 0.35 ? 0xffdf47 : 0xff315d;
     }
+  }
+
+  togglePause(event) {
+    if (event?.repeat || this.isGameOver) return;
+    this.isPaused = !this.isPaused;
+    if (this.isPaused) {
+      this.player?.setVelocity(0, 0);
+      this.physics.world.pause();
+      this.time.paused = true;
+      this.tweens.timeScale = 0;
+    } else {
+      this.physics.world.resume();
+      this.time.paused = false;
+      this.tweens.timeScale = 1;
+    }
+    this.pauseOverlay?.setVisible(this.isPaused);
+    playSfx(this, "menu");
   }
 
   updatePlayer(time) {
@@ -746,8 +844,9 @@ class GameScene extends Phaser.Scene {
   createEnemy(type, x, y) {
     const e = this.enemies.create(x, y, `enemy-${type}`);
     e.type = type;
-    e.hp = { basic: 18, dive: 24, spread: 35, side: 28, tracker: 30, shield: 58, suicide: 22, gunship: 95, sniper: 48, elite: 120 }[type] || 25;
-    e.score = e.hp * 9;
+    const baseHp = { basic: 18, dive: 24, spread: 35, side: 28, tracker: 30, shield: 58, suicide: 22, gunship: 95, sniper: 48, elite: 120 }[type] || 25;
+    e.hp = Math.max(1, Math.ceil(baseHp * this.difficulty.enemyHp));
+    e.score = Math.round(baseHp * 9 * this.difficulty.score);
     e.fireAt = this.time.now + Phaser.Math.Between(700, 1600);
     e.setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
     e.body.setSize(e.width * 0.72, e.height * 0.72);
@@ -802,7 +901,8 @@ class GameScene extends Phaser.Scene {
     b.setActive(true).setVisible(true).setDepth(6).setTint(tint).setBlendMode(Phaser.BlendModes.ADD);
     b.body.enable = true;
     b.body.setCircle(7, 9, 9);
-    b.setVelocity(vx, vy);
+    const speed = this.difficulty?.bulletSpeed || 1;
+    b.setVelocity(vx * speed, vy * speed);
   }
 
   hitEnemy(b, e) {
@@ -938,8 +1038,9 @@ class GameScene extends Phaser.Scene {
     });
     const bossSpec = BOSS_SPECS[this.levelIndex];
     this.boss = this.physics.add.image(WIDTH / 2, -120, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
-    this.boss.hp = this.level.boss.hp;
-    this.boss.maxHp = this.level.boss.hp;
+    const bossHp = Math.ceil(this.level.boss.hp * this.difficulty.bossHp);
+    this.boss.hp = bossHp;
+    this.boss.maxHp = bossHp;
     this.boss.modeIndex = 0;
     this.boss.nextAttack = this.time.now + 1800;
     this.boss.spec = bossSpec;
@@ -1023,7 +1124,7 @@ class GameScene extends Phaser.Scene {
     playSfx(this, "bossDown");
     this.time.delayedCall(1200, () => {
       if (this.levelIndex >= LEVELS.length - 1) {
-        this.scene.start("ResultScene", { mode: "clear", score: this.score });
+        this.scene.start("ResultScene", { mode: "clear", score: this.score, difficulty: this.difficultyKey });
       } else {
         this.scene.start("ResultScene", {
           mode: "win",
@@ -1035,6 +1136,7 @@ class GameScene extends Phaser.Scene {
           missiles: this.missiles,
           stage: this.levelIndex + 1,
           nextLevel: this.levelIndex + 1,
+          difficulty: this.difficultyKey,
         });
       }
     });
@@ -1081,8 +1183,12 @@ class GameScene extends Phaser.Scene {
   gameOver() {
     this.isGameOver = true;
     this.player.setVisible(false).setActive(false);
-    this.time.delayedCall(900, () => this.scene.start("ResultScene", { mode: "gameover", score: this.score, stage: this.levelIndex + 1 }));
+    this.time.delayedCall(900, () => this.scene.start("ResultScene", { mode: "gameover", score: this.score, stage: this.levelIndex + 1, difficulty: this.difficultyKey }));
   }
+}
+
+function getDifficulty(key) {
+  return DIFFICULTIES[key] || DIFFICULTIES[DEFAULT_DIFFICULTY];
 }
 
 function loadScoreRecords() {
@@ -1247,9 +1353,9 @@ function hudText(size, color, align = "left") {
   };
 }
 
-function neonButton(scene, x, y, label, onClick) {
-  const box = scene.add.rectangle(x, y, 220, 58, 0x07101e, 0.82).setStrokeStyle(2, 0x27e7ff, 1);
-  const text = scene.add.text(x, y, label, hudText(24, "#dffcff", "center")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 12);
+function neonButton(scene, x, y, label, onClick, width = 220, height = 58, fontSize = 24) {
+  const box = scene.add.rectangle(x, y, width, height, 0x07101e, 0.82).setStrokeStyle(2, 0x27e7ff, 1);
+  const text = scene.add.text(x, y, label, hudText(fontSize, "#dffcff", "center")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 12);
   box.setInteractive({ useHandCursor: true });
   box.on("pointerover", () => box.setFillStyle(0x102a42, 0.9));
   box.on("pointerout", () => box.setFillStyle(0x07101e, 0.82));
