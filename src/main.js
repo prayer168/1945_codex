@@ -6,8 +6,8 @@ let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
-const BOSS_SPAWN_TIME = 60000;
-const BOSS_SPAWN_WAVE = 78;
+const BOSS_READY_DELAY = 5000;
+const BOSS_WAVE_GOAL = 54;
 const DIFFICULTIES = {
   easy: {
     label: "EASY",
@@ -451,6 +451,7 @@ class MenuScene extends Phaser.Scene {
     };
     neonButton(this, WIDTH / 2, HEIGHT * 0.78, "START", startGame);
     this.input.keyboard.once("keydown-SPACE", startGame);
+    if (hasTestFlag("autoBossTest")) this.time.delayedCall(180, startGame);
     this.scale.on("resize", () => this.scene.restart());
   }
 }
@@ -559,6 +560,7 @@ class GameScene extends Phaser.Scene {
     this.shieldUntil = 0;
     this.foregroundOffset = 0;
     this.levelElapsed = 0;
+    this.bossReadyAt = null;
 
     this.add.rectangle(0, 0, WIDTH, HEIGHT, this.level.palette.bg).setOrigin(0);
     this.bg = this.add.graphics();
@@ -606,7 +608,6 @@ class GameScene extends Phaser.Scene {
     this.addWarning(`${this.level.name}`);
 
     this.spawnEvent = this.time.addEvent({ delay: this.difficulty.spawnDelay || ENEMY_SPAWN_DELAY, callback: this.spawnEnemy, callbackScope: this, loop: true });
-    this.time.delayedCall(BOSS_SPAWN_TIME, () => this.startBoss());
 
     this.physics.add.overlap(this.playerBullets, this.enemies, this.hitEnemy, null, this);
     this.physics.add.overlap(this.playerBullets, this.enemyBullets, this.hitEnemyBullet, null, this);
@@ -626,6 +627,7 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-M", () => this.launchCruiseVolley(this.player.x, this.player.y - 20, true));
     this.input.keyboard.on("keydown-P", (event) => this.togglePause(event));
     this.input.keyboard.on("keydown-ESC", (event) => this.togglePause(event));
+    if (hasTestFlag("autoBossTest")) this.armAutoBossTest();
     this.scale.on("resize", (gameSize) => this.handleResize(gameSize));
   }
 
@@ -642,7 +644,7 @@ class GameScene extends Phaser.Scene {
     this.updatePickups();
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
-    if (!this.bossActive && !this.bossDead && this.shouldForceBoss()) this.startBoss();
+    this.updateBossReadiness(time);
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
   }
 
@@ -733,7 +735,8 @@ class GameScene extends Phaser.Scene {
   updateHud() {
     if (this.combo > 0 && this.time.now > this.comboUntil) this.resetCombo();
     this.hud.setText(`LIFE ${this.lives}  PWR ${this.power}  ${WEAPONS[this.weaponType].name}  WING ${this.wingmanCount}  BOMB ${this.bombs}  MSL ${this.missiles}  SCORE ${this.score}`);
-    const bossText = this.bossActive ? "BOSS" : `BOSS ${Math.max(0, Math.ceil((BOSS_SPAWN_TIME - this.levelElapsed) / 1000))}`;
+    const remainingWaves = Math.max(0, BOSS_WAVE_GOAL - this.spawnCount);
+    const bossText = this.bossActive ? "BOSS" : this.bossReadyAt ? `BOSS ${Math.max(0, Math.ceil((this.bossReadyAt - this.time.now) / 1000))}` : `WAVE ${remainingWaves}`;
     this.stageText.setText(`${this.difficulty.label}  STAGE ${this.levelIndex + 1}/${LEVELS.length}  ${bossText}`);
     if (this.combo >= 2) {
       const ratio = Phaser.Math.Clamp((this.comboUntil - this.time.now) / 2600, 0, 1);
@@ -887,6 +890,11 @@ class GameScene extends Phaser.Scene {
 
   spawnEnemy() {
     if (this.bossActive || this.isGameOver) return;
+    if (this.spawnCount >= BOSS_WAVE_GOAL) {
+      this.spawnEvent?.remove();
+      this.spawnEvent = null;
+      return;
+    }
     const pool = this.level.enemies;
     const type = pool[this.spawnCount % pool.length];
     const x = Phaser.Math.Between(50, WIDTH - 50);
@@ -894,11 +902,38 @@ class GameScene extends Phaser.Scene {
     this.createEnemy(type, x, y);
     if (this.spawnCount % 7 === 5) this.createEnemy(pool[(this.spawnCount + 1) % pool.length], Phaser.Math.Between(50, WIDTH - 50), -90);
     this.spawnCount++;
-    if (this.shouldForceBoss()) this.startBoss();
+    if (this.spawnCount >= BOSS_WAVE_GOAL) {
+      this.spawnEvent?.remove();
+      this.spawnEvent = null;
+    }
   }
 
-  shouldForceBoss() {
-    return !this.bossActive && !this.bossDead && (this.levelElapsed >= BOSS_SPAWN_TIME || this.spawnCount >= BOSS_SPAWN_WAVE);
+  updateBossReadiness(time) {
+    if (this.bossActive || this.bossDead || this.spawnCount < BOSS_WAVE_GOAL) return;
+    const activeEnemies = this.enemies.countActive(true);
+    if (activeEnemies > 0) {
+      this.bossReadyAt = null;
+      return;
+    }
+    if (!this.bossReadyAt) {
+      this.bossReadyAt = time + BOSS_READY_DELAY;
+      this.addWarning("AREA CLEAR - BOSS IN 5");
+      playSfx(this, "warning", 0.55);
+    }
+    if (time >= this.bossReadyAt) this.startBoss();
+  }
+
+  armAutoBossTest() {
+    document.body.dataset.bossTest = "arming";
+    this.time.delayedCall(500, () => {
+      this.spawnEvent?.remove();
+      this.spawnEvent = null;
+      this.spawnCount = BOSS_WAVE_GOAL;
+      this.enemies.children.each((e) => e.active && this.killSprite(e));
+      this.bossReadyAt = null;
+      document.body.dataset.bossTest = "waiting-five-seconds";
+      this.updateBossReadiness(this.time.now);
+    });
   }
 
   createEnemy(type, x, y) {
@@ -1127,6 +1162,7 @@ class GameScene extends Phaser.Scene {
   startBoss() {
     if (this.bossActive || this.bossDead) return;
     this.bossActive = true;
+    if (hasTestFlag("autoBossTest")) document.body.dataset.bossTest = "boss-active";
     this.spawnEvent?.remove();
     this.clearEnemyBullets(false);
     this.enemies.children.each((e) => {
@@ -1329,6 +1365,10 @@ class GameScene extends Phaser.Scene {
 
 function getDifficulty(key) {
   return DIFFICULTIES[key] || DIFFICULTIES[DEFAULT_DIFFICULTY];
+}
+
+function hasTestFlag(flag) {
+  return new URLSearchParams(window.location.search).has(flag);
 }
 
 function startMusic(scene, mode = "stage") {
@@ -1802,6 +1842,10 @@ const game = new Phaser.Game({
   },
   scene: [BootScene, MenuScene, GameScene, ResultScene],
 });
+
+if (import.meta.env.DEV || window.location.search.includes("testHooks=1")) {
+  window.__neon1945Game = game;
+}
 
 function forceGameResize() {
   const size = getViewportSize();
