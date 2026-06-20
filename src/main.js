@@ -8,6 +8,9 @@ const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
 const BOSS_READY_DELAY = 5000;
 const BOSS_WAVE_GOAL = 54;
+function hasTestFlag(flag) {
+  return new URLSearchParams(window.location.search).has(flag);
+}
 const DIFFICULTIES = {
   easy: {
     label: "EASY",
@@ -45,12 +48,12 @@ const WEAPONS = [
   { name: "LASER", color: 0x9cff7f },
 ];
 const BOSS_SPECS = [
-  { texture: "boss-orbit", body: [150, 78], y: 118, sway: 115, speed: 820 },
-  { texture: "boss-plasma", body: [110, 120], y: 132, sway: 86, speed: 620 },
-  { texture: "boss-abyss", body: [176, 102], y: 126, sway: 68, speed: 980 },
-  { texture: "boss-forge", body: [184, 96], y: 128, sway: 96, speed: 760 },
-  { texture: "boss-quantum", body: [138, 126], y: 132, sway: 120, speed: 540 },
-  { texture: "boss-null", body: [198, 118], y: 124, sway: 54, speed: 1120 },
+  { texture: "boss-orbit", body: [150, 78], y: 188, sway: 86, speed: 820 },
+  { texture: "boss-plasma", body: [110, 120], y: 196, sway: 74, speed: 620 },
+  { texture: "boss-abyss", body: [176, 102], y: 192, sway: 62, speed: 980 },
+  { texture: "boss-forge", body: [184, 96], y: 194, sway: 76, speed: 760 },
+  { texture: "boss-quantum", body: [138, 126], y: 198, sway: 84, speed: 540 },
+  { texture: "boss-null", body: [198, 118], y: 190, sway: 50, speed: 1120 },
 ];
 const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.UP,
@@ -77,7 +80,7 @@ const LEVELS = [
     enemies: ["basic", "dive", "spread"],
     boss: {
       name: "ORBITAL DEFENSE ARK",
-      hp: 1180,
+      hp: 6200,
       tint: 0x35ddff,
       modes: ["lineStorm", "sideLasers", "summon"],
     },
@@ -88,7 +91,7 @@ const LEVELS = [
     enemies: ["side", "tracker", "shield"],
     boss: {
       name: "PLASMA CORE MECH",
-      hp: 1450,
+      hp: 8200,
       tint: 0xff40df,
       modes: ["spiral", "arcWall", "splitShot"],
     },
@@ -99,7 +102,7 @@ const LEVELS = [
     enemies: ["suicide", "gunship", "sniper"],
     boss: {
       name: "ABYSS MOTHERSHIP",
-      hp: 1450,
+      hp: 10400,
       tint: 0xff2544,
       modes: ["fullScreen", "weakPoint", "eliteSummon"],
     },
@@ -110,7 +113,7 @@ const LEVELS = [
     enemies: ["basic", "side", "gunship"],
     boss: {
       name: "SOLAR ANVIL DREADNOUGHT",
-      hp: 1720,
+      hp: 12600,
       tint: 0xffb02e,
       modes: ["lineStorm", "splitShot", "arcWall"],
     },
@@ -121,7 +124,7 @@ const LEVELS = [
     enemies: ["tracker", "spread", "sniper"],
     boss: {
       name: "QUANTUM SERAPH",
-      hp: 2050,
+      hp: 14800,
       tint: 0x66ffbd,
       modes: ["spiral", "summon", "weakPoint"],
     },
@@ -132,7 +135,7 @@ const LEVELS = [
     enemies: ["shield", "gunship", "elite"],
     boss: {
       name: "NULL STAR EMPEROR",
-      hp: 2550,
+      hp: 18000,
       tint: 0xb7c9ff,
       modes: ["fullScreen", "sideLasers", "eliteSummon"],
     },
@@ -451,7 +454,7 @@ class MenuScene extends Phaser.Scene {
     };
     neonButton(this, WIDTH / 2, HEIGHT * 0.78, "START", startGame);
     this.input.keyboard.once("keydown-SPACE", startGame);
-    if (hasTestFlag("autoBossTest")) this.time.delayedCall(180, startGame);
+    if (hasTestFlag("autoBossTest") || hasTestFlag("autoBossKillTest")) this.time.delayedCall(180, startGame);
     this.scale.on("resize", () => this.scene.restart());
   }
 }
@@ -628,6 +631,8 @@ class GameScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-P", (event) => this.togglePause(event));
     this.input.keyboard.on("keydown-ESC", (event) => this.togglePause(event));
     if (hasTestFlag("autoBossTest")) this.armAutoBossTest();
+    if (hasTestFlag("autoBossKillTest") && this.levelIndex === 0) this.armAutoBossKillTest();
+    if (hasTestFlag("autoBossKillTest") && this.levelIndex > 0) document.body.dataset.bossKillTest = `level-${this.levelIndex + 1}`;
     this.scale.on("resize", (gameSize) => this.handleResize(gameSize));
   }
 
@@ -646,6 +651,7 @@ class GameScene extends Phaser.Scene {
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
     this.updateBossReadiness(time);
     if (this.bossActive && this.boss?.active) this.updateBoss(time);
+    this.updateAutoBossKillTest();
   }
 
   drawBackground() {
@@ -702,9 +708,10 @@ class GameScene extends Phaser.Scene {
     this.hudBg = this.add.rectangle(WIDTH / 2, 22, WIDTH - 28, 40, 0x061221, 0.58).setStrokeStyle(1, this.level.palette.accent, 0.9).setDepth(50);
     this.hud = this.add.text(22, 10, "", hudText(16, "#dffcff")).setDepth(51);
     this.stageText = this.add.text(WIDTH - 22, 10, "", hudText(16, "#fff2a8", "right")).setOrigin(1, 0).setDepth(51);
-    this.bossBarBg = this.add.rectangle(WIDTH / 2, 64, WIDTH - 90, 14, 0x220814, 0.85).setDepth(51).setVisible(false);
-    this.bossBar = this.add.rectangle(45, 64, WIDTH - 90, 14, 0xff315d, 1).setOrigin(0, 0.5).setDepth(52).setVisible(false);
-    this.bossLabel = this.add.text(WIDTH / 2, 77, "", hudText(13, "#ffd6df", "center")).setOrigin(0.5, 0).setDepth(52).setVisible(false);
+    this.bossBarWidth = Math.min(320, WIDTH - 110);
+    this.bossBarBg = this.add.rectangle(WIDTH / 2, 58, this.bossBarWidth, 10, 0x07101e, 0.9).setStrokeStyle(1, this.level.palette.accent, 0.9).setDepth(51).setVisible(false);
+    this.bossBar = this.add.rectangle(WIDTH / 2 - this.bossBarWidth / 2, 58, this.bossBarWidth, 10, 0x44ff7d, 1).setOrigin(0, 0.5).setDepth(52).setVisible(false);
+    this.bossLabel = this.add.text(WIDTH / 2, 66, "", hudText(13, "#fff2a8", "center")).setOrigin(0.5, 0).setDepth(52).setVisible(false);
     this.comboText = this.add.text(WIDTH / 2, 48, "", hudText(17, "#8ffcff", "center")).setOrigin(0.5, 0).setDepth(52).setShadow(0, 0, "#21e7ff", 10);
     this.comboBar = this.add.rectangle(WIDTH / 2, 72, WIDTH * 0.34, 4, 0x27e7ff, 0.75).setDepth(52).setVisible(false);
   }
@@ -723,9 +730,10 @@ class GameScene extends Phaser.Scene {
     this.player?.setCollideWorldBounds(true);
     this.hudBg?.setPosition(WIDTH / 2, 22).setSize(WIDTH - 28, 40);
     this.stageText?.setPosition(WIDTH - 22, 10);
-    this.bossBarBg?.setPosition(WIDTH / 2, 64).setSize(WIDTH - 90, 14);
-    if (this.bossBar) this.bossBar.setPosition(45, 64);
-    this.bossLabel?.setPosition(WIDTH / 2, 77);
+    this.bossBarWidth = Math.min(320, WIDTH - 110);
+    this.bossBarBg?.setPosition(WIDTH / 2, 58).setSize(this.bossBarWidth, 10);
+    if (this.bossBar) this.bossBar.setPosition(WIDTH / 2 - this.bossBarWidth / 2, 58);
+    this.bossLabel?.setPosition(WIDTH / 2, 66);
     this.comboText?.setPosition(WIDTH / 2, 48);
     this.comboBar?.setPosition(WIDTH / 2, 72);
     this.pauseOverlay?.setPosition(WIDTH / 2, HEIGHT / 2);
@@ -749,8 +757,9 @@ class GameScene extends Phaser.Scene {
     }
     if (this.bossActive && this.boss?.active) {
       const ratio = Phaser.Math.Clamp(this.boss.hp / this.boss.maxHp, 0, 1);
-      this.bossBar.width = (WIDTH - 90) * ratio;
-      this.bossBar.fillColor = ratio < 0.35 ? 0xffdf47 : 0xff315d;
+      this.bossBar.width = this.bossBarWidth * ratio;
+      this.bossBar.fillColor = ratio < 0.35 ? 0xff8a2b : ratio < 0.65 ? 0xfff06a : 0x44ff7d;
+      this.bossLabel.setText(`${this.level.boss.name}  HP ${Math.max(0, Math.ceil(this.boss.hp))}/${this.boss.maxHp}`);
     }
   }
 
@@ -910,11 +919,6 @@ class GameScene extends Phaser.Scene {
 
   updateBossReadiness(time) {
     if (this.bossActive || this.bossDead || this.spawnCount < BOSS_WAVE_GOAL) return;
-    const activeEnemies = this.enemies.countActive(true);
-    if (activeEnemies > 0) {
-      this.bossReadyAt = null;
-      return;
-    }
     if (!this.bossReadyAt) {
       this.bossReadyAt = time + BOSS_READY_DELAY;
       this.addWarning("AREA CLEAR - BOSS IN 5");
@@ -934,6 +938,26 @@ class GameScene extends Phaser.Scene {
       document.body.dataset.bossTest = "waiting-five-seconds";
       this.updateBossReadiness(this.time.now);
     });
+  }
+
+  armAutoBossKillTest() {
+    document.body.dataset.bossKillTest = "arming";
+    this.time.delayedCall(500, () => {
+      this.spawnEvent?.remove();
+      this.spawnEvent = null;
+      this.spawnCount = BOSS_WAVE_GOAL;
+      this.enemies.children.each((e) => e.active && this.killSprite(e));
+      this.bossReadyAt = this.time.now;
+      this.startBoss();
+      document.body.dataset.bossKillTest = "boss-spawned";
+    });
+  }
+
+  updateAutoBossKillTest() {
+    if (!hasTestFlag("autoBossKillTest") || document.body.dataset.bossKillTest !== "boss-spawned" || !this.boss?.active) return;
+    this.boss.hp = 1;
+    document.body.dataset.bossKillTest = "boss-defeated";
+    this.defeatBoss();
   }
 
   createEnemy(type, x, y) {
@@ -1250,24 +1274,19 @@ class GameScene extends Phaser.Scene {
 
   createBossAura() {
     this.bossAura = this.add.graphics().setDepth(13);
-    this.bossName = this.add.text(WIDTH / 2, this.boss.y - 88, "BOSS", hudText(24, "#ff3864", "center"))
-      .setOrigin(0.5)
-      .setDepth(14)
-      .setShadow(0, 0, "#ff3864", 18);
     this.updateBossAura(this.time.now);
   }
 
   updateBossAura(time) {
     if (!this.bossAura || !this.boss?.active) return;
     const pulse = 0.65 + Math.sin(time / 120) * 0.22;
-    const coreColor = this.boss.hp < this.boss.maxHp * 0.33 ? 0xff304f : this.boss.hp < this.boss.maxHp * 0.66 ? 0xfff06a : this.level.palette.accent;
+    const coreColor = this.boss.hp < this.boss.maxHp * 0.33 ? 0xff8a2b : this.boss.hp < this.boss.maxHp * 0.66 ? 0xfff06a : this.level.palette.accent;
     this.bossAura.clear();
     this.bossAura.lineStyle(4, this.level.palette.accent, 0.85).strokeRoundedRect(this.boss.x - 118, this.boss.y - 58, 236, 116, 16);
     this.bossAura.lineStyle(2, 0xffffff, 0.58).strokeRoundedRect(this.boss.x - 92, this.boss.y - 42, 184, 84, 12);
     this.bossAura.fillStyle(coreColor, 0.35 + pulse * 0.25).fillCircle(this.boss.x, this.boss.y, 28 + pulse * 5);
     this.bossAura.fillStyle(0xffffff, 0.85).fillCircle(this.boss.x, this.boss.y, 12 + pulse * 2);
-    this.bossAura.fillStyle(0xff3864, 0.8).fillCircle(this.boss.x - 76, this.boss.y + 22, 9).fillCircle(this.boss.x + 76, this.boss.y + 22, 9);
-    this.bossName?.setPosition(this.boss.x, this.boss.y - 88);
+    this.bossAura.fillStyle(0x44ff7d, 0.8).fillCircle(this.boss.x - 76, this.boss.y + 22, 9).fillCircle(this.boss.x + 76, this.boss.y + 22, 9);
   }
 
   hitBoss(b, boss) {
@@ -1290,17 +1309,17 @@ class GameScene extends Phaser.Scene {
     this.addScore(3000 * (this.levelIndex + 1), false);
     this.explode(this.boss.x, this.boss.y, 90);
     this.bossAura?.destroy();
-    this.bossName?.destroy();
     this.killSprite(this.boss);
     this.clearEnemyBullets(true);
     this.cameras.main.flash(550, 255, 255, 255);
+    this.addWarning("BOSS DOWN - STAGE CLEAR");
     playSfx(this, "bossDown");
-    this.time.delayedCall(1200, () => {
+    this.time.delayedCall(1800, () => {
       if (this.levelIndex >= LEVELS.length - 1) {
         this.scene.start("ResultScene", { mode: "clear", score: this.score, combo: this.bestCombo, difficulty: this.difficultyKey });
       } else {
-        this.scene.start("ResultScene", {
-          mode: "win",
+        this.scene.start("GameScene", {
+          levelIndex: this.levelIndex + 1,
           score: this.score,
           power: this.power,
           lives: this.lives,
@@ -1365,10 +1384,6 @@ class GameScene extends Phaser.Scene {
 
 function getDifficulty(key) {
   return DIFFICULTIES[key] || DIFFICULTIES[DEFAULT_DIFFICULTY];
-}
-
-function hasTestFlag(flag) {
-  return new URLSearchParams(window.location.search).has(flag);
 }
 
 function startMusic(scene, mode = "stage") {
