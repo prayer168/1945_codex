@@ -77,7 +77,7 @@ const LEVELS = [
     enemies: ["basic", "dive", "spread"],
     boss: {
       name: "ORBITAL DEFENSE ARK",
-      hp: 780,
+      hp: 1180,
       tint: 0x35ddff,
       modes: ["lineStorm", "sideLasers", "summon"],
     },
@@ -88,7 +88,7 @@ const LEVELS = [
     enemies: ["side", "tracker", "shield"],
     boss: {
       name: "PLASMA CORE MECH",
-      hp: 1040,
+      hp: 1450,
       tint: 0xff40df,
       modes: ["spiral", "arcWall", "splitShot"],
     },
@@ -1145,7 +1145,7 @@ class GameScene extends Phaser.Scene {
       }
     });
     const bossSpec = BOSS_SPECS[this.levelIndex];
-    this.boss = this.physics.add.image(WIDTH / 2, -120, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
+    this.boss = this.physics.add.image(WIDTH / 2, bossSpec.y, bossSpec.texture).setDepth(12).setTint(this.level.boss.tint).setBlendMode(Phaser.BlendModes.ADD);
     this.boss.setScale(Math.min(1.22, Math.max(1, WIDTH / 430)));
     const bossHp = Math.ceil(this.level.boss.hp * this.difficulty.bossHp);
     this.boss.hp = bossHp;
@@ -1154,7 +1154,9 @@ class GameScene extends Phaser.Scene {
     this.boss.nextAttack = this.time.now + 1800;
     this.boss.spec = bossSpec;
     this.boss.body.setSize(bossSpec.body[0], bossSpec.body[1]);
-    this.tweens.add({ targets: this.boss, y: bossSpec.y, duration: 900, ease: "Sine.easeOut" });
+    this.createBossAura();
+    this.cameras.main.flash(260, 255, 48, 94);
+    this.cameras.main.shake(180, 0.01);
     this.bossBarBg.setVisible(true);
     this.bossBar.setVisible(true);
     this.bossLabel.setText(this.level.boss.name).setVisible(true);
@@ -1164,6 +1166,7 @@ class GameScene extends Phaser.Scene {
 
   updateBoss(time) {
     this.boss.x = WIDTH / 2 + Math.sin(time / this.boss.spec.speed) * this.boss.spec.sway;
+    this.updateBossAura(time);
     const rage = this.boss.hp < this.boss.maxHp * 0.45;
     if (time > this.boss.nextAttack) {
       const mode = this.level.boss.modes[this.boss.modeIndex++ % this.level.boss.modes.length];
@@ -1209,6 +1212,28 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  createBossAura() {
+    this.bossAura = this.add.graphics().setDepth(13);
+    this.bossName = this.add.text(WIDTH / 2, this.boss.y - 88, "BOSS", hudText(24, "#ff3864", "center"))
+      .setOrigin(0.5)
+      .setDepth(14)
+      .setShadow(0, 0, "#ff3864", 18);
+    this.updateBossAura(this.time.now);
+  }
+
+  updateBossAura(time) {
+    if (!this.bossAura || !this.boss?.active) return;
+    const pulse = 0.65 + Math.sin(time / 120) * 0.22;
+    const coreColor = this.boss.hp < this.boss.maxHp * 0.33 ? 0xff304f : this.boss.hp < this.boss.maxHp * 0.66 ? 0xfff06a : this.level.palette.accent;
+    this.bossAura.clear();
+    this.bossAura.lineStyle(4, this.level.palette.accent, 0.85).strokeRoundedRect(this.boss.x - 118, this.boss.y - 58, 236, 116, 16);
+    this.bossAura.lineStyle(2, 0xffffff, 0.58).strokeRoundedRect(this.boss.x - 92, this.boss.y - 42, 184, 84, 12);
+    this.bossAura.fillStyle(coreColor, 0.35 + pulse * 0.25).fillCircle(this.boss.x, this.boss.y, 28 + pulse * 5);
+    this.bossAura.fillStyle(0xffffff, 0.85).fillCircle(this.boss.x, this.boss.y, 12 + pulse * 2);
+    this.bossAura.fillStyle(0xff3864, 0.8).fillCircle(this.boss.x - 76, this.boss.y + 22, 9).fillCircle(this.boss.x + 76, this.boss.y + 22, 9);
+    this.bossName?.setPosition(this.boss.x, this.boss.y - 88);
+  }
+
   hitBoss(b, boss) {
     if (!b.active || !boss.active) return;
     boss.hp -= b.damage || 10;
@@ -1228,6 +1253,8 @@ class GameScene extends Phaser.Scene {
     this.bossDead = true;
     this.addScore(3000 * (this.levelIndex + 1), false);
     this.explode(this.boss.x, this.boss.y, 90);
+    this.bossAura?.destroy();
+    this.bossName?.destroy();
     this.killSprite(this.boss);
     this.clearEnemyBullets(true);
     this.cameras.main.flash(550, 255, 255, 255);
