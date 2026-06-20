@@ -48,12 +48,12 @@ const WEAPONS = [
   { name: "LASER", color: 0x9cff7f },
 ];
 const BOSS_SPECS = [
-  { texture: "boss-orbit", body: [260, 128], y: 218, sway: 72, speed: 820 },
-  { texture: "boss-plasma", body: [220, 160], y: 224, sway: 64, speed: 620 },
-  { texture: "boss-abyss", body: [292, 150], y: 222, sway: 56, speed: 980 },
-  { texture: "boss-forge", body: [292, 146], y: 224, sway: 68, speed: 760 },
-  { texture: "boss-quantum", body: [230, 176], y: 226, sway: 72, speed: 540 },
-  { texture: "boss-null", body: [310, 158], y: 220, sway: 48, speed: 1120 },
+  { texture: "boss-orbit", body: [350, 156], y: 224, sway: 64, speed: 820 },
+  { texture: "boss-plasma", body: [300, 178], y: 228, sway: 58, speed: 620 },
+  { texture: "boss-abyss", body: [370, 168], y: 226, sway: 52, speed: 980 },
+  { texture: "boss-forge", body: [370, 164], y: 228, sway: 62, speed: 760 },
+  { texture: "boss-quantum", body: [310, 190], y: 230, sway: 66, speed: 540 },
+  { texture: "boss-null", body: [390, 176], y: 224, sway: 44, speed: 1120 },
 ];
 const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.UP,
@@ -646,6 +646,7 @@ class GameScene extends Phaser.Scene {
     this.updateWingmen(time);
     this.updateBullets();
     this.updateEnemies(time, delta);
+    this.checkBossBulletHits();
     this.updatePickups();
     this.updateHud();
     this.shield.setPosition(this.player.x, this.player.y).setVisible(time < this.shieldUntil);
@@ -1017,7 +1018,7 @@ class GameScene extends Phaser.Scene {
   fireEnemyBullet(x, y, vx, vy, tint = this.level.palette.enemy) {
     const b = this.enemyBullets.get(x, y, "enemyBullet");
     if (!b) return;
-    b.setActive(true).setVisible(true).setDepth(6).setTint(tint).setBlendMode(Phaser.BlendModes.ADD);
+    b.setActive(true).setVisible(true).setDepth(15).setTint(tint).setBlendMode(Phaser.BlendModes.ADD);
     b.body.enable = true;
     b.body.setCircle(7, 9, 9);
     const speed = this.difficulty?.bulletSpeed || 1;
@@ -1212,9 +1213,9 @@ class GameScene extends Phaser.Scene {
     this.boss.hp = bossHp;
     this.boss.maxHp = bossHp;
     this.boss.modeIndex = 0;
-    this.boss.nextAttack = this.time.now + 1800;
+    this.boss.nextAttack = this.time.now + 350;
     this.boss.spec = bossSpec;
-    this.boss.body.setSize(bossSpec.body[0], bossSpec.body[1]);
+    this.boss.body.setSize(Math.min(WIDTH - 70, bossSpec.body[0]), bossSpec.body[1], true);
     this.createBossAura();
     this.cameras.main.flash(260, 255, 48, 94);
     this.cameras.main.shake(180, 0.01);
@@ -1223,6 +1224,9 @@ class GameScene extends Phaser.Scene {
     this.bossLabel.setText(this.level.boss.name).setVisible(true);
     this.physics.add.overlap(this.playerBullets, this.boss, this.hitBoss, null, this);
     this.physics.add.overlap(this.player, this.boss, this.hitPlayer, null, this);
+    this.time.delayedCall(420, () => {
+      if (this.boss?.active && !this.bossDead) this.bossAttack(this.level.boss.modes[0], false);
+    });
   }
 
   updateBoss(time) {
@@ -1232,7 +1236,7 @@ class GameScene extends Phaser.Scene {
     if (time > this.boss.nextAttack) {
       const mode = this.level.boss.modes[this.boss.modeIndex++ % this.level.boss.modes.length];
       this.bossAttack(mode, rage);
-      this.boss.nextAttack = time + (rage ? 900 : 1350);
+      this.boss.nextAttack = time + (rage ? 720 : 1050);
     }
   }
 
@@ -1241,7 +1245,8 @@ class GameScene extends Phaser.Scene {
     const y = this.boss.y + 50;
     playSfx(this, rage ? "bossRage" : "bossAttack", 0.55);
     if (mode === "lineStorm") {
-      for (let i = -3; i <= 3; i++) this.fireEnemyBullet(x + i * 30, y, i * 22, rage ? 300 : 235);
+      for (let i = -4; i <= 4; i++) this.fireEnemyBullet(x + i * 28, y, i * 28, rage ? 330 : 270, 0xff315d);
+      this.fireAimedBossShot(x, y + 12, rage ? 360 : 290, 0xff8a2b);
     } else if (mode === "sideLasers") {
       [-90, 90].forEach((ox) => this.fireEnemyBullet(x + ox, y, 0, rage ? 390 : 320, 0xff45ff));
       for (let i = -1; i <= 1; i++) this.fireEnemyBullet(x, y, i * 90, 230);
@@ -1273,6 +1278,11 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  fireAimedBossShot(x, y, speed, tint) {
+    const a = Phaser.Math.Angle.Between(x, y, this.player.x, this.player.y);
+    this.fireEnemyBullet(x, y, Math.cos(a) * speed, Math.sin(a) * speed, tint);
+  }
+
   createBossAura() {
     this.bossAura = this.add.graphics().setDepth(13);
     this.updateBossAura(this.time.now);
@@ -1289,13 +1299,38 @@ class GameScene extends Phaser.Scene {
   drawBossHull(g, x, y, pulse, coreColor) {
     const accent = this.level.palette.accent;
     const hot = this.level.boss.tint;
-    const w = Math.min(WIDTH - 62, 360);
-    const h = this.levelIndex === 4 ? 188 : 162;
+    const w = Math.min(WIDTH - 36, 430);
+    const h = this.levelIndex === 4 ? 216 : 190;
     const left = x - w / 2;
     const top = y - h / 2;
-    g.fillStyle(0x030712, 0.96).fillRoundedRect(left + 34, top + 28, w - 68, h - 54, 22);
-    g.fillStyle(0x071624, 0.94).fillTriangle(x, top + h + 8, left + 22, top + 58, left + w - 22, top + 58);
-    g.fillStyle(0x0b1322, 0.98).fillRoundedRect(left + 72, top + 12, w - 144, h - 24, 18);
+    g.fillStyle(0x02040b, 0.98).fillPoints([
+      { x, y: top - 10 },
+      { x: left + w - 78, y: top + 22 },
+      { x: left + w - 12, y: y - 18 },
+      { x: left + w - 88, y: y + 72 },
+      { x: x + 48, y: top + h + 20 },
+      { x, y: top + h + 52 },
+      { x: x - 48, y: top + h + 20 },
+      { x: left + 88, y: y + 72 },
+      { x: left + 12, y: y - 18 },
+      { x: left + 78, y: top + 22 },
+    ], true);
+    g.lineStyle(5, accent, 0.82).strokePoints([
+      { x, y: top - 10 },
+      { x: left + w - 78, y: top + 22 },
+      { x: left + w - 12, y: y - 18 },
+      { x: left + w - 88, y: y + 72 },
+      { x: x + 48, y: top + h + 20 },
+      { x, y: top + h + 52 },
+      { x: x - 48, y: top + h + 20 },
+      { x: left + 88, y: y + 72 },
+      { x: left + 12, y: y - 18 },
+      { x: left + 78, y: top + 22 },
+    ], true);
+    g.fillStyle(0x02050d, 1).fillRoundedRect(left + 34, top + 28, w - 68, h - 54, 22);
+    g.fillStyle(0x06111f, 1).fillTriangle(x, top + h + 8, left + 22, top + 58, left + w - 22, top + 58);
+    g.fillStyle(0x0a1729, 1).fillRoundedRect(left + 72, top + 12, w - 144, h - 24, 18);
+    g.fillStyle(0x101b2b, 0.98).fillRoundedRect(left + 102, top + 42, w - 204, 56, 14);
     g.lineStyle(7, accent, 0.95).strokeRoundedRect(left + 34, top + 28, w - 68, h - 54, 22);
     g.lineStyle(4, 0xffffff, 0.45).strokeRoundedRect(left + 72, top + 12, w - 144, h - 24, 18);
     g.lineStyle(4, hot, 0.74).strokeTriangle(x, top + h + 8, left + 22, top + 58, left + w - 22, top + 58);
@@ -1312,16 +1347,61 @@ class GameScene extends Phaser.Scene {
     }
     g.fillStyle(hot, 0.42 + pulse * 0.22).fillCircle(x, y, 42 + pulse * 7);
     g.fillStyle(0xffffff, 0.92).fillCircle(x, y, 16 + pulse * 2);
-    g.fillStyle(accent, 0.96).fillCircle(left + 58, y + 30, 13).fillCircle(left + w - 58, y + 30, 13);
-    g.fillStyle(0xfff06a, 0.88).fillCircle(left + 96, top + 48, 8).fillCircle(left + w - 96, top + 48, 8);
+    g.fillStyle(accent, 0.96).fillCircle(left + 58, y + 30, 16).fillCircle(left + w - 58, y + 30, 16);
+    g.fillStyle(0xfff06a, 0.88).fillCircle(left + 98, top + 50, 9).fillCircle(left + w - 98, top + 50, 9);
+    g.fillStyle(0xff315d, 0.92).fillCircle(left + 142, top + 62, 11).fillCircle(left + w - 142, top + 62, 11);
+    g.fillStyle(0xff315d, 0.96).fillRoundedRect(x - 12, top + h - 18, 24, 36, 8);
+    g.fillStyle(0xff315d, 0.92).fillRoundedRect(left + 74, y + 42, 26, 40, 8).fillRoundedRect(left + w - 100, y + 42, 26, 40, 8);
+    g.fillStyle(0xff315d, 0.88).fillRoundedRect(left + 26, y - 12, 24, 50, 8).fillRoundedRect(left + w - 50, y - 12, 24, 50, 8);
+    g.lineStyle(3, 0xfff06a, 0.88).lineBetween(x - 56, y + 68, x, y + 92).lineBetween(x + 56, y + 68, x, y + 92);
     g.lineStyle(2, 0xffffff, 0.36).strokeRoundedRect(left + 10, top + 6, w - 20, h + 12, 26);
   }
 
-  hitBoss(b, boss) {
-    if (!b.active || !boss.active) return;
-    boss.hp -= b.damage || 10;
+  hitBoss(a, b) {
+    const boss = a === this.boss ? a : b;
+    const bullet = a === this.boss ? b : a;
+    if (!boss?.active || !bullet?.active || boss !== this.boss) return;
+    this.damageBoss(bullet.damage || 10, bullet.x, bullet.y);
+    this.killSprite(bullet);
+  }
+
+  checkBossBulletHits() {
+    if (!this.bossActive || !this.boss?.active || this.bossDead) return;
+    const bounds = this.getBossHitBounds();
+    this.playerBullets.children.each((b) => {
+      if (!b.active) return;
+      const radius = b.texture?.key === "laser" ? 12 : b.texture?.key === "missile" ? 18 : 10;
+      if (
+        b.x + radius >= bounds.left &&
+        b.x - radius <= bounds.right &&
+        b.y + radius >= bounds.top &&
+        b.y - radius <= bounds.bottom
+      ) {
+        this.damageBoss(b.damage || 10, b.x, b.y);
+        this.killSprite(b);
+      }
+    });
+  }
+
+  getBossHitBounds() {
+    const w = Math.min(WIDTH - 36, 430);
+    const h = this.levelIndex === 4 ? 216 : 190;
+    return {
+      left: this.boss.x - w / 2 + 16,
+      right: this.boss.x + w / 2 - 16,
+      top: this.boss.y - h / 2 + 8,
+      bottom: this.boss.y + h / 2 + 12,
+    };
+  }
+
+  damageBoss(damage, x, y) {
+    if (!this.boss?.active || this.bossDead) return;
+    const boss = this.boss;
+    boss.hp -= damage;
     if (Phaser.Math.Between(1, 5) === 1) playSfx(this, "bossHit", 0.5);
-    this.killSprite(b);
+    this.explode(x, y, 5);
+    boss.setTintFill(0xffffff);
+    this.time.delayedCall(55, () => boss.active && boss.setTint(this.level.boss.tint));
     if (boss.hp <= boss.maxHp * 0.5 && !boss.dropped) {
       boss.dropped = true;
       this.dropPickup(boss.x, boss.y + 45, "P");
