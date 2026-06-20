@@ -6,8 +6,8 @@ let HEIGHT = Math.max(640, window.innerHeight || 840);
 const PLAYER_SPEED = 360;
 const SCORE_KEY = "neon1945-score-records";
 const ENEMY_SPAWN_DELAY = 620;
-const BOSS_SPAWN_TIME = 18000;
-const BOSS_SPAWN_COUNT = 20;
+const BOSS_SPAWN_TIME = 60000;
+const BOSS_SPAWN_COUNT = 90;
 const WEAPONS = [
   { name: "VULCAN", color: 0x83faff },
   { name: "SPREAD", color: 0xfff06a },
