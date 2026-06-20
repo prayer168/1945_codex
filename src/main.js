@@ -26,10 +26,6 @@ const CAPTURED_KEYS = [
   Phaser.Input.Keyboard.KeyCodes.DOWN,
   Phaser.Input.Keyboard.KeyCodes.LEFT,
   Phaser.Input.Keyboard.KeyCodes.RIGHT,
-  Phaser.Input.Keyboard.KeyCodes.W,
-  Phaser.Input.Keyboard.KeyCodes.A,
-  Phaser.Input.Keyboard.KeyCodes.S,
-  Phaser.Input.Keyboard.KeyCodes.D,
   Phaser.Input.Keyboard.KeyCodes.SPACE,
   Phaser.Input.Keyboard.KeyCodes.Q,
   Phaser.Input.Keyboard.KeyCodes.E,
@@ -376,7 +372,7 @@ class MenuScene extends Phaser.Scene {
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵 / WASD 移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，突破 6 關霓虹戰線", hudText(19, "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.44, "方向鍵移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，突破 6 關霓虹戰線", hudText(19, "#dffcff", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.55, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
     const startGame = () => {
       playSfx(this, "start");
@@ -498,10 +494,6 @@ class GameScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys({
-      W: Phaser.Input.Keyboard.KeyCodes.W,
-      A: Phaser.Input.Keyboard.KeyCodes.A,
-      S: Phaser.Input.Keyboard.KeyCodes.S,
-      D: Phaser.Input.Keyboard.KeyCodes.D,
       SPACE: Phaser.Input.Keyboard.KeyCodes.SPACE,
       Q: Phaser.Input.Keyboard.KeyCodes.Q,
       E: Phaser.Input.Keyboard.KeyCodes.E,
@@ -638,10 +630,10 @@ class GameScene extends Phaser.Scene {
   }
 
   updatePlayer(time) {
-    const left = this.cursors.left.isDown || this.keys.A.isDown || pressed("ArrowLeft", "KeyA", "a", "A");
-    const right = this.cursors.right.isDown || this.keys.D.isDown || pressed("ArrowRight", "KeyD", "d", "D");
-    const up = this.cursors.up.isDown || this.keys.W.isDown || pressed("ArrowUp", "KeyW", "w", "W");
-    const down = this.cursors.down.isDown || this.keys.S.isDown || pressed("ArrowDown", "KeyS", "s", "S");
+    const left = this.cursors.left.isDown || pressed("ArrowLeft");
+    const right = this.cursors.right.isDown || pressed("ArrowRight");
+    const up = this.cursors.up.isDown || pressed("ArrowUp");
+    const down = this.cursors.down.isDown || pressed("ArrowDown");
     const vx = (right ? 1 : 0) - (left ? 1 : 0);
     const vy = (down ? 1 : 0) - (up ? 1 : 0);
     const v = new Phaser.Math.Vector2(vx, vy).normalize().scale(PLAYER_SPEED);
