@@ -405,7 +405,7 @@ class MenuScene extends Phaser.Scene {
     addStarfield(this, 0x15d9ff);
     this.add.text(WIDTH / 2, HEIGHT * 0.2, "NEON 1945", hudText(56, "#8ffcff")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
     this.add.text(WIDTH / 2, HEIGHT * 0.28, "ABYSS RUN", hudText(24, "#ff5cf7")).setOrigin(0.5).setShadow(0, 0, "#ff3df2", 14);
-    this.add.text(WIDTH / 2, HEIGHT * 0.42, "方向鍵移動\nSpace 或滑鼠左鍵射擊，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，P / Esc 暫停", hudText(18, "#dffcff", "center")).setOrigin(0.5);
+    this.add.text(WIDTH / 2, HEIGHT * 0.42, "方向鍵移動，自動射擊\nSpace 炸彈清彈，1/2/3 或 Q/E 換武器\nC 發射巡弋飛彈，P / Esc 暫停", hudText(18, "#dffcff", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.53, `BEST ${records.best}    LAST ${records.last}`, hudText(18, "#fff2a8", "center")).setOrigin(0.5);
     this.add.text(WIDTH / 2, HEIGHT * 0.6, "DIFFICULTY", hudText(15, "#8ffcff", "center")).setOrigin(0.5);
     const difficultyButtons = DIFFICULTY_ORDER.map((key, i) => {
@@ -593,7 +593,8 @@ class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.enemyBullets, this.hitPlayer, null, this);
     this.physics.add.overlap(this.player, this.pickups, this.collectPickup, null, this);
 
-    this.input.keyboard.on("keydown-B", () => this.clearEnemyBullets(true));
+    this.input.keyboard.on("keydown-B", (event) => this.triggerBomb(event));
+    this.input.keyboard.on("keydown-SPACE", (event) => this.triggerBomb(event));
     this.input.keyboard.on("keydown-Q", () => this.cycleWeapon(-1));
     this.input.keyboard.on("keydown-E", () => this.cycleWeapon(1));
     this.input.keyboard.on("keydown-ONE", () => this.setWeapon(0));
@@ -683,7 +684,7 @@ class GameScene extends Phaser.Scene {
     this.pauseBg = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x000000, 0.56).setOrigin(0.5);
     const panel = this.add.rectangle(0, 0, Math.min(360, WIDTH - 42), 190, 0x061221, 0.88).setStrokeStyle(2, 0x27e7ff, 1);
     const title = this.add.text(0, -48, "PAUSED", hudText(38, "#8ffcff", "center")).setOrigin(0.5).setShadow(0, 0, "#21e7ff", 18);
-    const hint = this.add.text(0, 18, "P / Esc 繼續\n方向鍵移動，Space 射擊", hudText(18, "#dffcff", "center")).setOrigin(0.5);
+    const hint = this.add.text(0, 18, "P / Esc 繼續\n方向鍵移動，自動射擊\nSpace 炸彈", hudText(18, "#dffcff", "center")).setOrigin(0.5);
     this.pauseOverlay = this.add.container(WIDTH / 2, HEIGHT / 2, [this.pauseBg, panel, title, hint]).setDepth(100).setVisible(false);
   }
 
@@ -727,6 +728,11 @@ class GameScene extends Phaser.Scene {
     playSfx(this, "menu");
   }
 
+  triggerBomb(event) {
+    if (event?.repeat || this.isGameOver || this.isPaused) return;
+    this.clearEnemyBullets(true);
+  }
+
   updatePlayer(time) {
     const left = this.cursors.left.isDown || pressed("ArrowLeft");
     const right = this.cursors.right.isDown || pressed("ArrowRight");
@@ -738,7 +744,7 @@ class GameScene extends Phaser.Scene {
     this.player.setVelocity(v.x || 0, v.y || 0);
     this.player.setAlpha(time < this.player.invulnUntil && Math.floor(time / 90) % 2 ? 0.35 : 1);
     if ((this.keys.C.isDown || pressed("KeyC", "c", "C")) && time > this.lastMissile + 520) this.launchCruiseMissile(this.player.x, this.player.y - 20, true);
-    if ((this.keys.SPACE.isDown || pressed("Space", " ", "Spacebar") || this.pointerDown) && time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
+    if (time > this.lastShot + Math.max(78, 170 - this.power * 18)) {
       this.firePlayer(time);
     }
   }
